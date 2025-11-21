@@ -40,7 +40,12 @@ namespace ChessProgrammingAlgo.Core
                     System.Threading.Thread.Sleep(500); // Delay for watchability
                 }
                 
-                Player currentPlayer = CurrentTurn == PieceColor.White ? WhitePlayer : BlackPlayer;
+                Player currentPlayer = 
+                    CurrentTurn == PieceColor.White 
+                        ? WhitePlayer 
+                        : BlackPlayer;
+                        
+                Console.WriteLine($"{currentPlayer.Color}'s turn.");
                 Move move = currentPlayer.GetMove(this);
 
                 if (move == null)

@@ -12,3 +12,4 @@ C:\Users\Reinout Wijnholds\Documents\Projects\HAN-ADP\chess-programming-algo\obj
 C:\Users\Reinout Wijnholds\Documents\Projects\HAN-ADP\chess-programming-algo\obj\Debug\net9.0\chess-programming-algo.pdb
 C:\Users\Reinout Wijnholds\Documents\Projects\HAN-ADP\chess-programming-algo\obj\Debug\net9.0\chess-programming-algo.genruntimeconfig.cache
 C:\Users\Reinout Wijnholds\Documents\Projects\HAN-ADP\chess-programming-algo\obj\Debug\net9.0\ref\chess-programming-algo.dll
+C:\Users\Reinout Wijnholds\Documents\Projects\HAN-ADP\chess-programming-algo\obj\Debug\net9.0\chess-programming-algo.sourcelink.json

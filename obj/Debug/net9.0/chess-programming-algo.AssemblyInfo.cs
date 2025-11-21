@@ -13,7 +13,7 @@ using System.Reflection;
 [assembly: System.Reflection.AssemblyCompanyAttribute("chess-programming-algo")]
 [assembly: System.Reflection.AssemblyConfigurationAttribute("Debug")]
 [assembly: System.Reflection.AssemblyFileVersionAttribute("1.0.0.0")]
-[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0")]
+[assembly: System.Reflection.AssemblyInformationalVersionAttribute("1.0.0+4abe5e9bcd32e92293631fde3688d631ca17a599")]
 [assembly: System.Reflection.AssemblyProductAttribute("chess-programming-algo")]
 [assembly: System.Reflection.AssemblyTitleAttribute("chess-programming-algo")]
 [assembly: System.Reflection.AssemblyVersionAttribute("1.0.0.0")]
