@@ -6,5 +6,4 @@ public interface IPlayer {
 
     PieceColor Color { get; }
     Move GetMove(IGame game);
-
 }

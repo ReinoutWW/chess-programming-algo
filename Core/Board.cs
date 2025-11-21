@@ -2,6 +2,7 @@ namespace Chess.Programming.Ago.Core;
 
 using Chess.Programming.Ago.Pieces;
 using Chess.Programming.Ago.Core.Exceptions;
+using System.ComponentModel;
 
 public class Board {
     private readonly Piece[,] pieces = new Piece[8, 8];
@@ -9,6 +10,19 @@ public class Board {
 
     public Board() {
         SetupInitialPieces();
+    }
+
+    public List<(Piece, Position)> GetPiecesForColor(PieceColor color) {
+        var pieces = new List<(Piece, Position)>();
+        for(int i = 0; i < 8; i++) {
+            for(int j = 0; j < 8; j++) {
+                if(this.pieces[i, j] != null && this.pieces[i, j].Color == color) {
+                    pieces.Add((this.pieces[i, j], new Position(i, j)));
+                }
+            }
+        }
+
+        return pieces;
     }
 
     public Piece[,] GetPieces() => pieces;
@@ -109,6 +123,20 @@ public class Board {
         pieces[row, 5] = new Bishop(color);
         pieces[row, 6] = new Knight(color);
         pieces[row, 7] = new Rook(color);
+    }
+
+    public Board Clone() {
+        var clonedBoard = new Board();
+
+        for(int i = 0; i < 8; i++) {
+            for(int j = 0; j < 8; j++) {
+                clonedBoard.pieces[i, j] = pieces[i, j];
+            }
+        }
+
+        clonedBoard.capturedPieces.AddRange(capturedPieces);
+
+        return clonedBoard;
     }
 
 }
