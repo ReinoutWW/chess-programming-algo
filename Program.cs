@@ -1,4 +1,6 @@
 ﻿using System;
+using Chess.Programming.Ago.Game;
+using Chess.Programming.Ago.Core;
 
 namespace ChessProgrammingAlgo
 {
@@ -14,7 +16,20 @@ namespace ChessProgrammingAlgo
             
             string choice = Console.ReadLine();
             
+            switch (choice) {
+                case "1":
+                    Console.WriteLine("Human vs Human");
+                    break;
+                case "2":
+                    Console.WriteLine("Human vs Random (Computer)");
+                    break;
+                case "3":
+                    Console.WriteLine("Random vs Random");
+                    break;
+            }
+
+            IGame game = new Game(new HumanPlayer(PieceColor.White), new HumanPlayer(PieceColor.Black));
+            game.Start();
         }
     }
 }
-
