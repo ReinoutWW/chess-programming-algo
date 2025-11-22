@@ -3,6 +3,13 @@ namespace Chess.Programming.Ago.ChessEngines;
 using Chess.Programming.Ago.Core;
 using Chess.Programming.Ago.Game;
 
+/// <summary>
+/// A bit better than the RandomMovePlayer.
+/// Will choose a random piece from the list of pieces for the color.
+/// Will then choose a random move from the valid moves for the piece.
+/// It will not pick the piece multiple times, as it shuffles the list of pieces.
+/// </summary>
+/// <param name="color"></param>
 public class VeryRandomMovePlayer(PieceColor color) : IPlayer {
     public PieceColor Color => color;
     public bool IsAI() => true;

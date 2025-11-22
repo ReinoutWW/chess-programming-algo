@@ -4,6 +4,12 @@ using Chess.Programming.Ago.Core;
 using Chess.Programming.Ago.Game;
 using Chess.Programming.Ago.Pieces;
 
+/// <summary>
+/// The GreedyPlayer is a simple AI that will choose the move that will capture the most valuable piece.
+/// If there are no captures, it will choose a random move.
+/// It will not consider the checkmate or stalemate.
+/// </summary>
+/// <param name="color"></param>
 public class GreedyPlayer(PieceColor color) : IPlayer {
     public PieceColor Color => color;
     public bool IsAI() => true;
