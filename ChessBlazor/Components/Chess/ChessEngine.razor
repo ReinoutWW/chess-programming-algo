@@ -1,0 +1,16 @@
+@namespace ChessBlazor.Components.Chess
+
+@using Chess.Programming.Ago.Game
+@using Chess.Programming.Ago.Pieces
+
+<div>
+    A Chess Engine
+</div>
+
+@code {
+    private IGame game = new Game(new HumanBlazorPlayer(PieceColor.White), new HumanBlazorPlayer(PieceColor.Black));
+
+    protected override void OnInitialized() {
+        game.Start();
+    }
+}

@@ -1,10 +1,11 @@
 ﻿using Chess.Programming.Ago.Game;
 using Chess.Programming.Ago.Core;
+using ChessConsole;
 
 Console.WriteLine("Welcome to C# Chess!");
 
 var gameActive = true;
-IGame game = new Game(new HumanPlayer(PieceColor.White), new HumanPlayer(PieceColor.Black));
+IGame game = new Game(new HumanConsolePlayer(PieceColor.White), new HumanConsolePlayer(PieceColor.Black));
 
 game.Start();
 

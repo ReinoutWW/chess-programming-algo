@@ -1,8 +1,9 @@
-namespace Chess.Programming.Ago.Core;
+namespace ChessConsole;
 
 using Chess.Programming.Ago.Game;
+using Chess.Programming.Ago.Core;
 
-public class HumanPlayer(PieceColor color) : IPlayer {
+public class HumanConsolePlayer(PieceColor color) : IPlayer {
 
     public PieceColor Color => color;
 
