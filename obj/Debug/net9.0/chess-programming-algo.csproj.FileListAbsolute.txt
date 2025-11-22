@@ -1,15 +1,3 @@
-C:\Users\Reinout Wijnholds\Documents\Projects\HAN-ADP\chess-programming-algo\bin\Debug\net9.0\chess-programming-algo.exe
-C:\Users\Reinout Wijnholds\Documents\Projects\HAN-ADP\chess-programming-algo\bin\Debug\net9.0\chess-programming-algo.deps.json
-C:\Users\Reinout Wijnholds\Documents\Projects\HAN-ADP\chess-programming-algo\bin\Debug\net9.0\chess-programming-algo.runtimeconfig.json
-C:\Users\Reinout Wijnholds\Documents\Projects\HAN-ADP\chess-programming-algo\bin\Debug\net9.0\chess-programming-algo.dll
-C:\Users\Reinout Wijnholds\Documents\Projects\HAN-ADP\chess-programming-algo\bin\Debug\net9.0\chess-programming-algo.pdb
 C:\Users\Reinout Wijnholds\Documents\Projects\HAN-ADP\chess-programming-algo\obj\Debug\net9.0\chess-programming-algo.GeneratedMSBuildEditorConfig.editorconfig
-C:\Users\Reinout Wijnholds\Documents\Projects\HAN-ADP\chess-programming-algo\obj\Debug\net9.0\chess-programming-algo.AssemblyInfoInputs.cache
-C:\Users\Reinout Wijnholds\Documents\Projects\HAN-ADP\chess-programming-algo\obj\Debug\net9.0\chess-programming-algo.AssemblyInfo.cs
 C:\Users\Reinout Wijnholds\Documents\Projects\HAN-ADP\chess-programming-algo\obj\Debug\net9.0\chess-programming-algo.csproj.CoreCompileInputs.cache
-C:\Users\Reinout Wijnholds\Documents\Projects\HAN-ADP\chess-programming-algo\obj\Debug\net9.0\chess-programming-algo.dll
-C:\Users\Reinout Wijnholds\Documents\Projects\HAN-ADP\chess-programming-algo\obj\Debug\net9.0\refint\chess-programming-algo.dll
-C:\Users\Reinout Wijnholds\Documents\Projects\HAN-ADP\chess-programming-algo\obj\Debug\net9.0\chess-programming-algo.pdb
-C:\Users\Reinout Wijnholds\Documents\Projects\HAN-ADP\chess-programming-algo\obj\Debug\net9.0\chess-programming-algo.genruntimeconfig.cache
-C:\Users\Reinout Wijnholds\Documents\Projects\HAN-ADP\chess-programming-algo\obj\Debug\net9.0\ref\chess-programming-algo.dll
 C:\Users\Reinout Wijnholds\Documents\Projects\HAN-ADP\chess-programming-algo\obj\Debug\net9.0\chess-programming-algo.sourcelink.json
