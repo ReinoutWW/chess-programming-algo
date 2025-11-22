@@ -1,0 +1,783 @@
+@page "/eval"
+
+@using global::Chess.Programming.Ago.Core
+@using global::Chess.Programming.Ago.Game
+@using global::Chess.Programming.Ago.ChessEngines
+@inject IJSRuntime JSRuntime
+
+@rendermode InteractiveServer
+
+<PageTitle>Algorithm Evaluation</PageTitle>
+
+<div class="eval-container">
+    <h1 class="eval-title">Chess Algorithm Evaluation</h1>
+    <p class="eval-subtitle">Compare all AI algorithms against each other</p>
+
+    <div class="selection-section">
+        <h3 class="selection-title">Select Algorithms to Evaluate</h3>
+        <div class="algo-selection">
+            @foreach (var algo in allAlgorithms)
+            {
+                <label class="algo-checkbox">
+                    <input type="checkbox" 
+                           @bind="algo.IsSelected" 
+                           disabled="@isEvaluating" />
+                    <span>@algo.Name</span>
+                </label>
+            }
+        </div>
+        <div class="selection-actions">
+            <button class="select-all-btn" @onclick="SelectAll" disabled="@isEvaluating">Select All</button>
+            <button class="select-all-btn" @onclick="DeselectAll" disabled="@isEvaluating">Deselect All</button>
+            <div class="games-input-container">
+                <label class="games-label">Games per matchup:</label>
+                <input type="number" 
+                       class="games-input" 
+                       @bind="gamesPerMatchup" 
+                       min="1" 
+                       max="100" 
+                       disabled="@isEvaluating" />
+            </div>
+        </div>
+    </div>
+
+    <div class="controls">
+        <button class="eval-button" @onclick="EvaluateAll" disabled="@(isEvaluating || !HasSelectedAlgorithms)">
+            @if (isEvaluating)
+            {
+                <span>Evaluating... (@currentProgress/@totalGames games)</span>
+            }
+            else
+            {
+                <span>Evaluate Selected (@selectedAlgorithms.Count())</span>
+            }
+        </button>
+
+        @if (isEvaluating)
+        {
+            <div class="progress-bar">
+                <div class="progress-fill" style="width: @(progressPercentage)%"></div>
+            </div>
+        }
+        
+        @if (!HasSelectedAlgorithms && !isEvaluating)
+        {
+            <p class="hint-text">Please select at least one algorithm to evaluate</p>
+        }
+    </div>
+
+    @if (logs.Any())
+    {
+        <div class="logs-section">
+            <h2>Live Logs</h2>
+            <div class="logs-container" id="logs-container">
+                @foreach (var log in logs.TakeLast(50))
+                {
+                    <div class="log-entry">@log</div>
+                }
+            </div>
+        </div>
+    }
+
+    @if (results.Any())
+    {
+        <div class="results-section">
+            <h2>Results Matrix</h2>
+            <p class="matrix-description">Each cell shows Wins/Draws/Losses from the row player's perspective</p>
+            
+            <div class="matrix-container">
+                <table class="results-matrix">
+                    <thead>
+                        <tr>
+                            <th class="corner-cell"></th>
+                            @foreach (var algo in selectedAlgorithms)
+                            {
+                                <th class="header-cell">@algo.Name</th>
+                            }
+                            <th class="header-cell total-header">Total Score</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var rowAlgo in selectedAlgorithms)
+                        {
+                            <tr>
+                                <th class="row-header">@rowAlgo.Name</th>
+                                @foreach (var colAlgo in selectedAlgorithms)
+                                {
+                                    var key = $"{rowAlgo.Name}vs{colAlgo.Name}";
+                                    var result = results.ContainsKey(key) ? results[key] : null;
+                                    var isSelfMatch = rowAlgo.Name == colAlgo.Name;
+                                    
+                                    <td class="result-cell @GetCellClass(result) @(isSelfMatch ? "self-match" : "")">
+                                        @if (result != null)
+                                        {
+                                            <div class="result-content">
+                                                <span class="wins">@result.Wins</span>
+                                                <span class="separator">/</span>
+                                                <span class="draws">@result.Draws</span>
+                                                <span class="separator">/</span>
+                                                <span class="losses">@result.Losses</span>
+                                            </div>
+                                            <div class="result-score">@result.Score pts</div>
+                                        }
+                                        else
+                                        {
+                                            <span class="pending">...</span>
+                                        }
+                                    </td>
+                                }
+                                <td class="total-cell">
+                                    @{
+                                        var totalScore = CalculateTotalScore(rowAlgo.Name);
+                                    }
+                                    <strong>@totalScore</strong>
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+
+            <div class="ranking-section">
+                <h2>Final Rankings</h2>
+                <ol class="ranking-list">
+                    @foreach (var ranking in GetRankings())
+                    {
+                        <li class="ranking-item">
+                            <span class="algo-name">@ranking.AlgoName</span>
+                            <span class="algo-score">@ranking.Score points</span>
+                        </li>
+                    }
+                </ol>
+            </div>
+        </div>
+    }
+</div>
+
+<script>
+    window.scrollLogsToBottom = function() {
+        const logsContainer = document.getElementById('logs-container');
+        if (logsContainer) {
+            logsContainer.scrollTop = logsContainer.scrollHeight;
+        }
+    }
+</script>
+
+<style>
+    .eval-container {
+        max-width: 1400px;
+        margin: 0 auto;
+        padding: 2rem;
+        background-color: #f9fafb;
+        min-height: 100vh;
+    }
+
+    .eval-title {
+        font-size: 2.5rem;
+        font-weight: 700;
+        color: #1f2937;
+        margin-bottom: 0.5rem;
+        text-align: center;
+    }
+
+    .eval-subtitle {
+        text-align: center;
+        color: #6b7280;
+        margin-bottom: 2rem;
+        font-size: 1.1rem;
+    }
+
+    .selection-section {
+        background: white;
+        border-radius: 8px;
+        padding: 1.5rem;
+        margin-bottom: 2rem;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    }
+
+    .selection-title {
+        margin-top: 0;
+        margin-bottom: 1rem;
+        color: #1f2937;
+        font-size: 1.2rem;
+        font-weight: 600;
+    }
+
+    .algo-selection {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 1rem;
+        margin-bottom: 1rem;
+    }
+
+    .algo-checkbox {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.5rem 1rem;
+        background-color: #f9fafb;
+        border: 1px solid #e5e7eb;
+        border-radius: 6px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        user-select: none;
+    }
+
+    .algo-checkbox:hover {
+        background-color: #f3f4f6;
+        border-color: #d1d5db;
+    }
+
+    .algo-checkbox input[type="checkbox"] {
+        cursor: pointer;
+        width: 18px;
+        height: 18px;
+    }
+
+    .algo-checkbox input[type="checkbox"]:disabled {
+        cursor: not-allowed;
+        opacity: 0.5;
+    }
+
+    .algo-checkbox span {
+        font-weight: 500;
+        color: #374151;
+    }
+
+    .selection-actions {
+        display: flex;
+        gap: 0.5rem;
+        align-items: center;
+        flex-wrap: wrap;
+    }
+
+    .select-all-btn {
+        background-color: white;
+        border: 1px solid #d1d5db;
+        color: #374151;
+        padding: 0.5rem 1rem;
+        font-size: 0.875rem;
+        font-weight: 500;
+        border-radius: 6px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+
+    .select-all-btn:hover:not(:disabled) {
+        background-color: #f9fafb;
+        border-color: #9ca3af;
+    }
+
+    .select-all-btn:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+
+    .games-input-container {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin-left: auto;
+    }
+
+    .games-label {
+        font-size: 0.875rem;
+        font-weight: 500;
+        color: #6b7280;
+    }
+
+    .games-input {
+        width: 80px;
+        padding: 0.5rem 0.75rem;
+        font-size: 0.875rem;
+        border: 1px solid #d1d5db;
+        border-radius: 6px;
+        background: white;
+        color: #374151;
+        font-weight: 500;
+        transition: all 0.2s ease;
+    }
+
+    .games-input:hover:not(:disabled) {
+        border-color: #9ca3af;
+    }
+
+    .games-input:focus {
+        outline: none;
+        border-color: #4f46e5;
+        box-shadow: 0 0 0 3px rgba(79, 70, 229, 0.1);
+    }
+
+    .games-input:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+        background-color: #f9fafb;
+    }
+
+    .games-input:invalid {
+        border-color: #ef4444;
+    }
+
+    .hint-text {
+        color: #9ca3af;
+        font-style: italic;
+        margin-top: 1rem;
+        font-size: 0.875rem;
+    }
+
+    .controls {
+        text-align: center;
+        margin-bottom: 2rem;
+    }
+
+    .eval-button {
+        background-color: #4f46e5;
+        color: white;
+        border: none;
+        padding: 1rem 3rem;
+        font-size: 1.1rem;
+        font-weight: 600;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+    }
+
+    .eval-button:hover:not(:disabled) {
+        background-color: #4338ca;
+        transform: translateY(-1px);
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+    }
+
+    .eval-button:disabled {
+        background-color: #9ca3af;
+        cursor: not-allowed;
+        transform: none;
+    }
+
+    .progress-bar {
+        width: 100%;
+        max-width: 600px;
+        height: 8px;
+        background-color: #e5e7eb;
+        border-radius: 4px;
+        margin: 1rem auto 0;
+        overflow: hidden;
+    }
+
+    .progress-fill {
+        height: 100%;
+        background-color: #4f46e5;
+        transition: width 0.3s ease;
+    }
+
+    .logs-section {
+        background: white;
+        border-radius: 8px;
+        padding: 1.5rem;
+        margin-bottom: 2rem;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    }
+
+    .logs-section h2 {
+        margin-top: 0;
+        color: #1f2937;
+        font-size: 1.5rem;
+        margin-bottom: 1rem;
+    }
+
+    .logs-container {
+        background-color: #f9fafb;
+        border: 1px solid #e5e7eb;
+        border-radius: 6px;
+        padding: 1rem;
+        max-height: 300px;
+        overflow-y: auto;
+        font-family: 'Courier New', monospace;
+        font-size: 0.9rem;
+    }
+
+    .log-entry {
+        padding: 0.25rem 0;
+        color: #374151;
+        border-bottom: 1px solid #e5e7eb;
+    }
+
+    .log-entry:last-child {
+        border-bottom: none;
+    }
+
+    .results-section {
+        background: white;
+        border-radius: 8px;
+        padding: 1.5rem;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    }
+
+    .results-section h2 {
+        margin-top: 0;
+        color: #1f2937;
+        font-size: 1.5rem;
+        margin-bottom: 1rem;
+    }
+
+    .matrix-description {
+        color: #6b7280;
+        font-size: 0.9rem;
+        margin-bottom: 1rem;
+        font-style: italic;
+    }
+
+    .matrix-container {
+        overflow-x: auto;
+        margin-bottom: 2rem;
+    }
+
+    .results-matrix {
+        width: 100%;
+        border-collapse: collapse;
+        background: white;
+    }
+
+    .results-matrix th,
+    .results-matrix td {
+        padding: 0.75rem;
+        text-align: center;
+        border: 1px solid #e5e7eb;
+    }
+
+    .corner-cell {
+        background-color: #f9fafb;
+    }
+
+    .header-cell {
+        background-color: #4f46e5;
+        color: white;
+        font-weight: 600;
+        font-size: 0.95rem;
+    }
+
+    .total-header {
+        background-color: #6366f1;
+    }
+
+    .row-header {
+        background-color: #f3f4f6;
+        font-weight: 600;
+        text-align: left;
+        padding-left: 1rem;
+        color: #374151;
+    }
+
+    .result-cell {
+        background-color: white;
+        font-size: 0.9rem;
+    }
+
+    .result-cell.self-match {
+        background-color: #fef3c7;
+        border: 1px solid #fbbf24;
+    }
+
+    .result-cell.dominant {
+        background-color: #d1fae5;
+    }
+
+    .result-cell.strong {
+        background-color: #e0f2fe;
+    }
+
+    .result-cell.weak {
+        background-color: #fee2e2;
+    }
+
+    .result-content {
+        margin-bottom: 0.25rem;
+    }
+
+    .wins {
+        color: #059669;
+        font-weight: 600;
+    }
+
+    .draws {
+        color: #d97706;
+        font-weight: 600;
+    }
+
+    .losses {
+        color: #dc2626;
+        font-weight: 600;
+    }
+
+    .separator {
+        color: #9ca3af;
+        margin: 0 0.25rem;
+    }
+
+    .result-score {
+        font-size: 0.8rem;
+        color: #6b7280;
+    }
+
+    .pending {
+        color: #9ca3af;
+    }
+
+    .total-cell {
+        background-color: #f3f4f6;
+        font-size: 1.1rem;
+        font-weight: 700;
+        color: #1f2937;
+    }
+
+    .ranking-section {
+        margin-top: 2rem;
+        padding-top: 2rem;
+        border-top: 2px solid #e5e7eb;
+    }
+
+    .ranking-section h2 {
+        color: #1f2937;
+        font-size: 1.5rem;
+        margin-bottom: 1rem;
+    }
+
+    .ranking-list {
+        list-style: none;
+        padding: 0;
+        counter-reset: ranking;
+    }
+
+    .ranking-item {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 1rem;
+        margin-bottom: 0.5rem;
+        background-color: #f9fafb;
+        border-radius: 6px;
+        border-left: 4px solid #4f46e5;
+        counter-increment: ranking;
+    }
+
+    .ranking-item::before {
+        content: counter(ranking) ".";
+        font-weight: 700;
+        font-size: 1.2rem;
+        color: #4f46e5;
+        margin-right: 1rem;
+    }
+
+    .algo-name {
+        font-weight: 600;
+        color: #1f2937;
+        flex: 1;
+    }
+
+    .algo-score {
+        color: #6b7280;
+        font-weight: 500;
+    }
+</style>
+
+@code {
+    private class AlgorithmInfo
+    {
+        public string Name { get; set; } = "";
+        public Func<PieceColor, IPlayer> Factory { get; set; } = null!;
+        public bool IsSelected { get; set; } = true;
+    }
+
+    private class MatchResult
+    {
+        public int Wins { get; set; }
+        public int Draws { get; set; }
+        public int Losses { get; set; }
+        public float Score => Wins * 1.0f + Draws * 0.5f;
+    }
+
+    private class Ranking
+    {
+        public string AlgoName { get; set; } = "";
+        public float Score { get; set; }
+    }
+
+    private List<AlgorithmInfo> allAlgorithms = new()
+    {
+        new() { Name = "Random", Factory = color => new RandomMovePlayer(color), IsSelected = true },
+        new() { Name = "Very Random", Factory = color => new VeryRandomMovePlayer(color), IsSelected = true },
+        new() { Name = "Greedy", Factory = color => new GreedyPlayer(color), IsSelected = true },
+        new() { Name = "MiniMax", Factory = color => new MiniMaxPlayer(color), IsSelected = true }
+    };
+
+    private IEnumerable<AlgorithmInfo> selectedAlgorithms => allAlgorithms.Where(a => a.IsSelected);
+    private bool HasSelectedAlgorithms => selectedAlgorithms.Any();
+
+    private Dictionary<string, MatchResult> results = new();
+    private List<string> logs = new();
+    private bool isEvaluating = false;
+    private int currentProgress = 0;
+    private int totalGames = 0;
+    private int gamesPerMatchup = 10;
+
+    private double progressPercentage => totalGames > 0 ? (currentProgress * 100.0 / totalGames) : 0;
+
+    private void SelectAll()
+    {
+        foreach (var algo in allAlgorithms)
+        {
+            algo.IsSelected = true;
+        }
+    }
+
+    private void DeselectAll()
+    {
+        foreach (var algo in allAlgorithms)
+        {
+            algo.IsSelected = false;
+        }
+    }
+
+    private async Task EvaluateAll()
+    {
+        if (!HasSelectedAlgorithms) return;
+
+        isEvaluating = true;
+        results.Clear();
+        logs.Clear();
+        currentProgress = 0;
+
+        var algorithmsToEval = selectedAlgorithms.ToList();
+
+        // Calculate total games
+        totalGames = algorithmsToEval.Count * algorithmsToEval.Count * gamesPerMatchup;
+
+        await InvokeAsync(StateHasChanged);
+
+        for (int i = 0; i < algorithmsToEval.Count; i++)
+        {
+            for (int j = 0; j < algorithmsToEval.Count; j++)
+            {
+                var algo1 = algorithmsToEval[i];
+                var algo2 = algorithmsToEval[j];
+
+                await EvaluateMatchup(algo1, algo2);
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+
+        await AddLog("=== Evaluation Complete! ===");
+        isEvaluating = false;
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task EvaluateMatchup(AlgorithmInfo algo1, AlgorithmInfo algo2)
+    {
+        var key = $"{algo1.Name}vs{algo2.Name}";
+        var result = new MatchResult();
+
+        await AddLog($"Starting: {algo1.Name} vs {algo2.Name}");
+        await InvokeAsync(StateHasChanged);
+
+        for (int gameNum = 1; gameNum <= gamesPerMatchup; gameNum++)
+        {
+            // Alternate colors
+            var whitePlayer = gameNum % 2 == 1 ? algo1.Factory(PieceColor.White) : algo2.Factory(PieceColor.White);
+            var blackPlayer = gameNum % 2 == 1 ? algo2.Factory(PieceColor.Black) : algo1.Factory(PieceColor.Black);
+
+            var game = new Game(whitePlayer, blackPlayer, 0);
+            await game.Start();
+
+            while (!game.IsFinished())
+            {
+                await Task.Delay(1); // Allow UI updates
+            }
+
+            // Determine result from algo1's perspective
+            bool algo1WasWhite = gameNum % 2 == 1;
+            if (game.Winner == null)
+            {
+                result.Draws++;
+                await AddLog($"  {algo1.Name} vs {algo2.Name}: Game {gameNum} = Draw ({game.GetGameEndReason()})");
+            }
+            else if ((algo1WasWhite && game.Winner.Color == PieceColor.White) ||
+                     (!algo1WasWhite && game.Winner.Color == PieceColor.Black))
+            {
+                result.Wins++;
+                await AddLog($"  {algo1.Name} vs {algo2.Name}: Game {gameNum} = WIN (Score: {result.Wins}-{result.Draws}-{result.Losses})");
+            }
+            else
+            {
+                result.Losses++;
+                await AddLog($"  {algo1.Name} vs {algo2.Name}: Game {gameNum} = Loss (Score: {result.Wins}-{result.Draws}-{result.Losses})");
+            }
+
+            currentProgress++;
+            await InvokeAsync(StateHasChanged);
+            await Task.Yield(); // Give UI thread a chance to update
+        }
+
+        results[key] = result;
+        await AddLog($"Completed: {algo1.Name} vs {algo2.Name} = {result.Wins}W-{result.Draws}D-{result.Losses}L ({result.Score} pts)");
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task AddLog(string message)
+    {
+        logs.Add($"[{DateTime.Now:HH:mm:ss}] {message}");
+        if (logs.Count > 200) // Keep last 200 logs
+        {
+            logs.RemoveAt(0);
+        }
+        
+        try
+        {
+            await JSRuntime.InvokeVoidAsync("scrollLogsToBottom");
+        }
+        catch
+        {
+            // Ignore JS interop errors (e.g., during prerendering)
+        }
+    }
+
+    private string GetCellClass(MatchResult? result)
+    {
+        if (result == null) return "";
+        
+        if (result.Wins >= 7) return "dominant";
+        if (result.Wins >= 5) return "strong";
+        if (result.Wins <= 3 && result.Losses >= 5) return "weak";
+        
+        return "";
+    }
+
+    private float CalculateTotalScore(string algoName)
+    {
+        float total = 0;
+        foreach (var algo in selectedAlgorithms)
+        {
+            var key = $"{algoName}vs{algo.Name}";
+            if (results.ContainsKey(key))
+            {
+                total += results[key].Score;
+            }
+        }
+        return total;
+    }
+
+    private List<Ranking> GetRankings()
+    {
+        var rankings = selectedAlgorithms
+            .Select(algo => new Ranking
+            {
+                AlgoName = algo.Name,
+                Score = CalculateTotalScore(algo.Name)
+            })
+            .OrderByDescending(r => r.Score)
+            .ToList();
+
+        return rankings;
+    }
+}
+

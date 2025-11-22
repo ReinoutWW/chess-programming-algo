@@ -1,0 +1,22 @@
+@rendermode InteractiveServer
+
+<div class="menu-container">
+    <button class="menu-button" @onclick="ToggleMenu">☰</button>
+    @if (showMenu)
+    {
+        <div class="menu-dropdown">
+            <a href="/" class="menu-item" @onclick="() => showMenu = false">Play Game</a>
+            <a href="/eval" class="menu-item" @onclick="() => showMenu = false">Evaluate Algorithms</a>
+        </div>
+    }
+</div>
+
+@code {
+    private bool showMenu = false;
+
+    private void ToggleMenu()
+    {
+        showMenu = !showMenu;
+    }
+}
+
