@@ -8,7 +8,9 @@
     private List<(string Label, Func<PieceColor, IPlayer> Factory)> playerTypes = new()
     {
         ("Human", color => new HumanBlazorPlayer(color)),
-        ("Random AI", color => new RandomMovePlayer(color))
+        ("Random AI", color => new RandomMovePlayer(color)),
+        ("Very Random AI", color => new VeryRandomMovePlayer(color)),
+        ("Greedy AI", color => new GreedyPlayer(color))
     };
 
     private string? selectedWhiteLabel;

@@ -114,11 +114,28 @@ public class Game(IPlayer whitePlayer, IPlayer blackPlayer) : IGame {
 
     private async Task RunNextMoveIfAI() {
         if(GetCurrentPlayer().IsAI()) {
-            await Task.Delay(300);
+            await Task.Delay(100);
 
             var move = await GetCurrentPlayer().GetMove(this);
             await DoMove(move);
         }
+    }
+
+    public List<Move> GetAllValidMovesForColor(PieceColor color) {
+        var pieces = board.GetPiecesForColor(color);
+
+        var validMoves = new List<Move>();
+        foreach(var piece in pieces) {
+            for(int i = 0; i < 8; i++) {
+                for(int j = 0; j < 8; j++) {
+                    if(IsValidMove(new Move(piece.Item2, new Position(i, j)))) {
+                        validMoves.Add(new Move(piece.Item2, new Position(i, j)));
+                    }
+                }
+            }
+        }
+        
+        return validMoves;
     }
 
     private void ValidateIfGameIsOver() {

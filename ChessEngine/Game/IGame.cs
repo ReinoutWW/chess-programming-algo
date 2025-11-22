@@ -24,4 +24,6 @@ public interface IGame {
     bool IsFinished();
 
     Board GetBoard();
+
+    List<Move> GetAllValidMovesForColor(PieceColor color);
 }
