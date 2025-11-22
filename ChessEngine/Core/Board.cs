@@ -32,9 +32,17 @@ public class Board {
         SetupForColor(PieceColor.Black);
     }
 
-    public void ApplyMove(Move move) {
+    /// <summary>
+    /// Applies a move to the board and returns true if it was a capture
+    /// If it was a capture, the captured piece is added to the capturedPieces list
+    /// </summary>
+    /// <param name="move"></param>
+    /// <returns>True if it was a capture, false otherwise</returns>
+    /// <exception cref="InvalidMoveException"></exception>
+    public MoveResult ApplyMove(Move move) {
         var fromPiece = pieces[move.From.Row, move.From.Column];
         var toPiece = pieces[move.To.Row, move.To.Column];
+        var moveResult = new MoveResult(false, null);
 
         if(fromPiece == null) {
             throw new InvalidMoveException("No piece at from position");
@@ -42,12 +50,15 @@ public class Board {
 
         if(toPiece != null) {
             capturedPieces.Add(toPiece);
+            moveResult = new MoveResult(true, toPiece);
         }
 
         pieces[move.To.Row, move.To.Column] = fromPiece;
         pieces[move.From.Row, move.From.Column] = null;
 
         fromPiece.HasMoved = true;
+
+        return moveResult;
     }
 
     /// <summary>

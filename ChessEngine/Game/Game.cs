@@ -4,7 +4,7 @@ using Chess.Programming.Ago.Pieces;
 
 namespace Chess.Programming.Ago.Game;
 
-public class Game(IPlayer whitePlayer, IPlayer blackPlayer) : IGame {
+public class Game(IPlayer whitePlayer, IPlayer blackPlayer, int _delayPerMoveInMilliseconds = 100) : IGame {
     public Func<Task>? NextMoveHandler { get; set; }
     private bool IsGameActive = true;
     public IGameVisualizer Visualizer { get; } = new GameVisualizer();
@@ -13,6 +13,12 @@ public class Game(IPlayer whitePlayer, IPlayer blackPlayer) : IGame {
         => currentColor == PieceColor.White 
             ? whitePlayer 
             : blackPlayer;
+
+    public string GetGameEndReason() => _gameEndReason;
+
+    private int _movesWithoutCapture = 0;
+    private const int MAX_MOVES_WITHOUT_CAPTURE = 50;
+    private string _gameEndReason = string.Empty;
 
     public bool IsChecked(PieceColor color) {
         return IsCheck(board, color);
@@ -54,7 +60,15 @@ public class Game(IPlayer whitePlayer, IPlayer blackPlayer) : IGame {
             throw new InvalidOperationException("Invalid move");
         }
 
-        board.ApplyMove(move);
+        var movedPiece = board.GetPieceAtPosition(move.From);
+        var moveResult = board.ApplyMove(move);
+
+        if(moveResult.WasCapture || movedPiece!.Type == PieceType.Pawn) {
+            _movesWithoutCapture = 0;
+        } else {
+            _movesWithoutCapture++;
+        }
+
         Visualize();
         
         // Notify UI immediately after board state changes
@@ -114,7 +128,7 @@ public class Game(IPlayer whitePlayer, IPlayer blackPlayer) : IGame {
 
     private async Task RunNextMoveIfAI() {
         if(GetCurrentPlayer().IsAI()) {
-            await Task.Delay(100);
+            await Task.Delay(_delayPerMoveInMilliseconds);
 
             var move = await GetCurrentPlayer().GetMove(this);
             await DoMove(move);
@@ -139,16 +153,44 @@ public class Game(IPlayer whitePlayer, IPlayer blackPlayer) : IGame {
     }
 
     private void ValidateIfGameIsOver() {
+
+        if(_movesWithoutCapture >= MAX_MOVES_WITHOUT_CAPTURE) {
+            Winner = null;
+            IsGameActive = false;
+            _gameEndReason = "50 moves without capture";
+            return;
+        }
+
         if(!HasAnyLegalMoves(currentColor)) {
             if(IsCheck(board, currentColor)) {
-                
+
                 Winner = currentColor == PieceColor.White ? blackPlayer : whitePlayer;
-                
+                _gameEndReason = "Checkmate";
                 IsGameActive = false;
             } else {
                 Winner = null;
+                _gameEndReason = "Stalemate";
                 IsGameActive = false;
             }
+        }
+
+        ValidateIfInsufficientMaterial();
+    }
+
+    private void ValidateIfInsufficientMaterial() {
+        var whitePieces = board.GetPiecesForColor(PieceColor.White);
+        var blackPieces = board.GetPiecesForColor(PieceColor.Black);
+
+        if(whitePieces.Count == 1 && blackPieces.Count == 1) {
+            Winner = null;
+            _gameEndReason = "Insufficient material";
+            IsGameActive = false;
+        }
+
+        if(whitePieces.HasInsufficientMaterial() && blackPieces.HasInsufficientMaterial()) {
+            Winner = null;
+            _gameEndReason = "Insufficient material";
+            IsGameActive = false;
         }
     }
 
@@ -208,4 +250,5 @@ public class Game(IPlayer whitePlayer, IPlayer blackPlayer) : IGame {
             .Select(move => move.To)
                 .ToList();
     }
+
 }

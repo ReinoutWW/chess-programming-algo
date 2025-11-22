@@ -13,11 +13,11 @@
         <div class="game-status">
             @if (game.IsFinished() && game.Winner != null) {
                 <div class="winner-display">
-                    🏆 @game.Winner.Color wins!
+                    🏆 @game.GetGameEndReason() - @game.Winner.Color wins!
                 </div>
             } else if (game.IsFinished()) {
                 <div class="winner-display draw">
-                    🤝 Stalemate - Draw!
+                    🤝 @game.GetGameEndReason() - Draw!
                 </div>
             } else {
                 <div class="spinner-container">
@@ -426,15 +426,19 @@
 
     [Parameter]
     public IPlayer WhitePlayer { get; set; } = new HumanBlazorPlayer(PieceColor.White);
+    
     [Parameter]
     public IPlayer BlackPlayer { get; set; } = new RandomMovePlayer(PieceColor.Black);
+    
+    [Parameter]
+    public int DelayPerMoveInMilliseconds { get; set; } = 100;
 
     private IGame game;
     private Board board = new Board();
     private bool isGameStarted = false;
 
     protected override void OnInitialized() {
-        game = new Game(WhitePlayer, BlackPlayer);
+        game = new Game(WhitePlayer, BlackPlayer, DelayPerMoveInMilliseconds);
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender) {

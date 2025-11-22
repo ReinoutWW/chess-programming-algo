@@ -26,4 +26,6 @@ public interface IGame {
     Board GetBoard();
 
     List<Move> GetAllValidMovesForColor(PieceColor color);
+
+    string GetGameEndReason();
 }

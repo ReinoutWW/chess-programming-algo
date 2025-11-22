@@ -77,6 +77,10 @@
                 </div>
             </div>
 
+            <div class="wrapper-margin-bottom">
+                <input type="number" @bind="delayPerMove" min="2" max="1000" step="2" />
+            </div>
+
             @if (!ReadyToStart)
             {
                 <p class="hint-text">Please select both players to continue</p>
@@ -89,6 +93,32 @@
     </div>
 
     <style>
+
+        .wrapper-margin-bottom {
+            margin-bottom: 1rem;
+        }
+
+        input[type="number"] {
+            width: 100%;
+            padding: 0.625rem 0.75rem;
+            font-size: 0.95rem;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            background: white;
+        }
+
+        input[type="number"]:focus {
+            outline: none;
+            border-color: #6366f1;
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+        }
+
+        input[type="number"]:invalid {
+            border-color: #ef4444;
+            box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1);
+            outline: none;
+        }
+
         .setup-screen {
             min-height: 100vh;
             display: flex;
@@ -221,5 +251,9 @@
 }
 else
 {
-    <ChessEngine WhitePlayer="whitePlayer!" BlackPlayer="blackPlayer!" />
+    <ChessEngine WhitePlayer="whitePlayer!" BlackPlayer="blackPlayer!" DelayPerMoveInMilliseconds="delayPerMove" />
+}
+
+@code {
+    private int delayPerMove = 100;
 }
