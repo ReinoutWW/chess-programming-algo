@@ -3,15 +3,19 @@ using Chess.Programming.Ago.Core;
 namespace Chess.Programming.Ago.Game;
 
 public interface IGame {
+    Func<Task>? NextMoveHandler { get; set; }
+
     IGameVisualizer Visualizer { get; }
 
     IPlayer? Winner { get; }
 
-    void Start();
+    public bool IsChecked(PieceColor color);
+
+    Task Start();
 
     void Visualize();
 
-    void DoMove(Move move);
+    Task DoMove(Move move);
 
     IPlayer GetCurrentPlayer();
 

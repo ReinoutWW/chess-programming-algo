@@ -1,9 +1,11 @@
+using System.Threading.Tasks;
 using Chess.Programming.Ago.Core;
 using Chess.Programming.Ago.Pieces;
 
 namespace Chess.Programming.Ago.Game;
 
 public class Game(IPlayer whitePlayer, IPlayer blackPlayer) : IGame {
+    public Func<Task>? NextMoveHandler { get; set; }
     private bool IsGameActive = true;
     public IGameVisualizer Visualizer { get; } = new GameVisualizer();
     public IPlayer? Winner { get; private set; } = null;
@@ -11,6 +13,10 @@ public class Game(IPlayer whitePlayer, IPlayer blackPlayer) : IGame {
         => currentColor == PieceColor.White 
             ? whitePlayer 
             : blackPlayer;
+
+    public bool IsChecked(PieceColor color) {
+        return IsCheck(board, color);
+    }
 
     private PieceColor currentColor = PieceColor.White;
     private readonly IPlayer whitePlayer = whitePlayer;
@@ -41,7 +47,7 @@ public class Game(IPlayer whitePlayer, IPlayer blackPlayer) : IGame {
         return hasValidMoveOnKing;
     }
 
-    public void DoMove(Move move) {
+    public async Task DoMove(Move move) {
         if(!IsValidMove(move)) {
             Console.WriteLine("Invalid move, try again...");
             Visualize();
@@ -50,14 +56,27 @@ public class Game(IPlayer whitePlayer, IPlayer blackPlayer) : IGame {
 
         board.ApplyMove(move);
         Visualize();
+        
+        // Notify UI immediately after board state changes
+        if(NextMoveHandler != null) {
+            await NextMoveHandler();
+        }
 
-        NextTurn();
+        await NextTurn();
     }
 
     public Board GetBoard() => board;
 
-    public void Start() {
+    public async Task Start() {
         Visualize();
+
+        ValidateIfGameIsOver();
+
+        if(!IsGameActive) {
+            return;
+        }
+
+        await RunNextMoveIfAI();
     }
 
     public bool IsFinished() => !IsGameActive;
@@ -78,18 +97,34 @@ public class Game(IPlayer whitePlayer, IPlayer blackPlayer) : IGame {
         return false;
     }
 
-    private void NextTurn() {
+    private async Task NextTurn() {
         currentColor = 
                 currentColor == PieceColor.White 
                     ? PieceColor.Black 
                     : PieceColor.White;
 
         ValidateIfGameIsOver();
+
+        if(!IsGameActive) {
+            return;
+        }
+
+        await RunNextMoveIfAI();
+    }
+
+    private async Task RunNextMoveIfAI() {
+        if(GetCurrentPlayer().IsAI()) {
+            await Task.Delay(300);
+
+            var move = await GetCurrentPlayer().GetMove(this);
+            await DoMove(move);
+        }
     }
 
     private void ValidateIfGameIsOver() {
         if(!HasAnyLegalMoves(currentColor)) {
             if(IsCheck(board, currentColor)) {
+                
                 Winner = currentColor == PieceColor.White ? blackPlayer : whitePlayer;
                 
                 IsGameActive = false;
@@ -127,7 +162,7 @@ public class Game(IPlayer whitePlayer, IPlayer blackPlayer) : IGame {
 
         if(IsCheck(simulatedBoard, currentColor)) {
             return true;
-        }
+        } 
 
         return false;
     }
@@ -136,6 +171,24 @@ public class Game(IPlayer whitePlayer, IPlayer blackPlayer) : IGame {
         Visualizer.Visualize(board);
     }
 
-    public List<Position> GetValidMovesForPosition(Position position)
-        => board.GetValidMovesForPosition(position);
+    public List<Position> GetValidMovesForPosition(Position position) {
+        var piece = board.GetPieceAtPosition(position);
+
+        var validmoves = new List<Move>();
+        for(int i = 0; i < 8; i++) {
+            for(int j = 0; j < 8; j++) {
+                if(position == new Position(i, j)) {
+                    continue;
+                }
+
+                if(IsValidMove(new Move(position, new Position(i, j)))) {
+                    validmoves.Add(new Move(position, new Position(i, j)));
+                }
+            }
+        }
+
+        return validmoves
+            .Select(move => move.To)
+                .ToList();
+    }
 }

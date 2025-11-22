@@ -12,8 +12,8 @@ public class King(PieceColor color) : Piece(color, PieceType.King) {
     }
 
     private bool IsOneSquareAway(Position from, Position to) {
-        return Math.Abs(from.Row - to.Row) == 1 
-            || Math.Abs(from.Column - to.Column) == 1;
+        return Math.Abs(from.Row - to.Row) <= 1 
+            && Math.Abs(from.Column - to.Column) <= 1;
     }
 
     private bool IsAllowedToCastle(Board board, Move move) {

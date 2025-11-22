@@ -62,6 +62,10 @@ public class Board {
     /// <param name="color"></param>
     /// <returns></returns>
     public bool IsValidMove(Move move, PieceColor color) {
+        if(IsOutOfBounds(move)) {
+            return false;
+        }
+
         var fromPiece = pieces[move.From.Row, move.From.Column];
         var toPiece = pieces[move.To.Row, move.To.Column];
 
@@ -70,10 +74,6 @@ public class Board {
         }
 
         if(fromPiece.Color != color) {
-            return false;
-        }
-
-        if(IsOutOfBounds(move)) {
             return false;
         }
 
@@ -98,6 +98,10 @@ public class Board {
 
     public Piece? GetPieceAtPosition(Position position) {
         return pieces[position.Row, position.Column];
+    }
+
+    public List<Piece> GetCapturedPieces() {
+        return capturedPieces;
     }
 
     private void SetupForColor(PieceColor color) {
@@ -137,29 +141,5 @@ public class Board {
         clonedBoard.capturedPieces.AddRange(capturedPieces);
 
         return clonedBoard;
-    }
-
-    public List<Position> GetValidMovesForPosition(Position position) {
-
-        var piece = GetPieceAtPosition(position);
-        Console.WriteLine($"Piece at position {position.Row},{position.Column}: {piece?.Type}");
-        Console.WriteLine($"Piece color: {piece?.Color}");
-
-        var validmoves = new List<Move>();
-        for(int i = 0; i < 8; i++) {
-            for(int j = 0; j < 8; j++) {
-                if(position == new Position(i, j)) {
-                    continue;
-                }
-
-                if(IsValidMove(new Move(position, new Position(i, j)), pieces[position.Row, position.Column].Color)) {
-                    validmoves.Add(new Move(position, new Position(i, j)));
-                }
-            }
-        }
-
-        return validmoves
-            .Select(move => move.To)
-                .ToList();
     }
 }

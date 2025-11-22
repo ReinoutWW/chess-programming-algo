@@ -41,8 +41,12 @@ public class Pawn(PieceColor color) : Piece(color, PieceType.Pawn) {
     }
 
     private bool IsNotJumpingOverPiece(Board board, Position from, Position to) {
-        var step = from.Row + _direction; 
+        var step = from.Row + _direction;
         while(step != to.Row) {
+            if(step < 0 || step > 7) {
+                return false;
+            }
+
             if(board.GetPieceAtPosition(new Position(step, from.Column)) != null) {
                 return false;
             }

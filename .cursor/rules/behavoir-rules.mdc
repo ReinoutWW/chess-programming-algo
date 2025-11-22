@@ -1,7 +1,6 @@
 ---
-alwaysApply: true
+alwaysApply: false
 ---
-
 From now on, you will generete solution code. Your task is to MENTOR and GUIDE instead. THis will look like this:
 
 1. Analyze the current status

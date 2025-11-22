@@ -1,16 +1,493 @@
 @namespace ChessBlazor.Components.Chess
 
-@using Chess.Programming.Ago.Game
-@using Chess.Programming.Ago.Pieces
+@rendermode InteractiveServer
+
+@using ChessBlazor.Components.Chess.Player
+@using global::Chess.Programming.Ago.ChessEngines
 
 <div>
-    A Chess Engine
+<div class="game-controls">
+    @if (!isGameStarted) {
+        <button class="btn btn-primary" @onclick="StartGame">Start Game</button>
+    } else {
+        <div class="game-status">
+            @if (game.IsFinished() && game.Winner != null) {
+                <div class="winner-display">
+                    🏆 @game.Winner.Color wins!
+                </div>
+            } else if (game.IsFinished()) {
+                <div class="winner-display draw">
+                    🤝 Stalemate - Draw!
+                </div>
+            } else {
+                <div class="spinner-container">
+                    <div class="spinner"></div>
+                    <span class="game-active-text">Game active</span>
+                </div>
+            }
+        </div>
+    }
 </div>
 
+<div>
+    Metadata:
+    Current player: @game.GetCurrentPlayer().Color
+    @if (game.IsFinished() && game.Winner == null) {
+        <span>Result: Stalemate (Draw)</span>
+    } else if (game.Winner != null) {
+        <span>Winner: @game.Winner.Color wins!</span>
+    } else {
+        <span>Winner: None</span>
+    }
+</div>
+
+<div class="notification-center">
+    @if(isGameStarted && game.IsChecked(game.GetCurrentPlayer().Color)) {
+        <div class="notification notification-warning">
+            @((game.GetCurrentPlayer().Color == PieceColor.White ? "White" : "Black") + " is in check")!
+        </div>
+    } 
+</div>
+
+<div class="game-layout">
+    <div class="captured-pieces-panel captured-pieces-white">
+        <h3>Captured by White</h3>
+        <div class="captured-pieces-list">
+            @foreach(var piece in board.GetCapturedPieces().Where(p => p.Color == PieceColor.Black)) {
+                <div class="captured-piece @(@piece.Type.ToString().ToLower())-@(@piece.Color.ToString().ToLower())"></div>
+            }
+        </div>
+    </div>
+
+    <div class="board-container">
+        <div class="board-header">
+            <div class="badge badge-white @(game.GetCurrentPlayer().Color == PieceColor.White ? "badge-is-turn" : "")">White</div>
+        </div>
+        <div class="board-body">
+            @for(int i = 0; i < 8; i++) {
+                <div class="board-column">
+                    @for(int j = 0; j < 8; j++) {
+                        var row = i;
+                        var column = j;
+                        var position = new Position(row, column);
+                        <div class="board-row-cell 
+                                @(selectedCellPosition == new Position(row, column) ? "board-row-cell-selected" : "") 
+                                @((row + column) % 2 == 0 ? "board-row-cell-even" : "board-row-cell-odd") 
+                                @(validMovesForselectedCellPosition.Contains(new Position(row, column)) ? "board-row-cell-valid-move" : "")"
+                                @onclick="() => HandleCellClick(position)">
+                            @{
+                                var piece = board.GetPieceAtPosition(position);
+                                if(piece != null) {
+                                    <div class="board-piece @(@piece.Type.ToString().ToLower())-@(@piece.Color.ToString().ToLower())">
+                                    </div>
+                                } else {
+                                    <span class="board-empty-text">
+                                    </span>
+                                }
+                            }
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+        <div class="board-footer">
+            <div class="badge badge-black @(game.GetCurrentPlayer().Color == PieceColor.Black ? "badge-is-turn" : "")">Black</div>
+        </div>
+    </div>
+
+    <div class="captured-pieces-panel captured-pieces-black">
+        <h3>Captured by Black</h3>
+        <div class="captured-pieces-list">
+            @foreach(var piece in board.GetCapturedPieces().Where(p => p.Color == PieceColor.White)) {
+                <div class="captured-piece @(@piece.Type.ToString().ToLower())-@(@piece.Color.ToString().ToLower())"></div>
+            }
+        </div>
+    </div>
+</div>
+</div>
+
+<style>
+    .game-controls {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        padding: 1rem;
+        margin-bottom: 1rem;
+    }
+
+    .btn {
+        padding: 0.75rem 2rem;
+        font-size: 1.125rem;
+        font-weight: bold;
+        border: none;
+        border-radius: 0.5rem;
+        cursor: pointer;
+        transition: all 0.3s ease;
+    }
+
+    .btn-primary {
+        background-color: #4CAF50;
+        color: white;
+    }
+
+    .btn-primary:hover {
+        background-color: #45a049;
+        transform: scale(1.05);
+    }
+
+    .game-status {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .spinner-container {
+        display: flex;
+        align-items: center;
+        gap: 1rem;
+    }
+
+    .spinner {
+        width: 30px;
+        height: 30px;
+        border: 4px solid #f3f3f3;
+        border-top: 4px solid #4CAF50;
+        border-radius: 50%;
+        animation: spin 1s linear infinite;
+    }
+
+    .game-active-text {
+        font-size: 1.125rem;
+        font-weight: bold;
+        color: #4CAF50;
+    }
+
+    .winner-display {
+        font-size: 1.5rem;
+        font-weight: bold;
+        color: #FFD700;
+        padding: 1rem 2rem;
+        background-color: #2c3e50;
+        border-radius: 0.5rem;
+        border: 2px solid #FFD700;
+    }
+    
+    .winner-display.draw {
+        color: #4A90E2;
+        background-color: #34495e;
+        border: 2px solid #4A90E2;
+    }
+
+    @@keyframes spin {
+        0% { transform: rotate(0deg); }
+        100% { transform: rotate(360deg); }
+    }
+
+    .notification-center {
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        padding: 0.5rem 1rem;
+    }
+
+    .notification {
+        font-size: 1rem;
+        font-weight: bold;
+        padding: 0.5rem 1rem;
+        border-radius: 0.5rem;
+    }
+
+    .notification-warning {
+        border: 1px solid #ccc91e;
+    }
+
+    .game-layout {
+        display: flex;
+        gap: 2rem;
+        justify-content: center;
+        align-items: flex-start;
+        padding: 1rem;
+    }
+
+    .captured-pieces-panel {
+        width: 200px;
+        padding: 1rem;
+        border: 2px solid #333;
+        border-radius: 0.5rem;
+        background-color: #f9f9f9;
+    }
+
+    .captured-pieces-panel h3 {
+        margin-top: 0;
+        margin-bottom: 1rem;
+        font-size: 1rem;
+        text-align: center;
+        color: #333;
+    }
+
+    .captured-pieces-list {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        justify-content: center;
+        min-height: 50px;
+    }
+
+    .captured-piece {
+        width: 40px;
+        height: 40px;
+        background-size: contain;
+        background-repeat: no-repeat;
+        background-position: center;
+        border: 1px solid #ddd;
+        border-radius: 4px;
+        background-color: white;
+    }
+
+    .board-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+
+    .board-row-cell-valid-move {
+        border: 3px solid #58ff61c4 !important;
+    }
+
+    .board-row-cell-selected {
+        border: 5px solid #beff74c4 !important;
+    }
+
+    .board-header-item {
+        font-size: 1.5rem;
+        font-weight: bold;
+    }
+
+    .board-row-cell-even {
+        background-color: #ffe9dc;
+    }
+
+    .board-row-cell-odd {
+        background-color: #f0c08a;
+    }
+
+    .board-body {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+    }
+    
+    .board-column {
+        display: flex;
+    }
+
+    .board-row-cell {
+        width: 100px;
+        height: 100px;
+    }
+
+    .board-piece {
+        width: 100%;
+        height: 100%;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+    }
+
+    .board-empty-text {
+        font-size: 1.5rem;
+        font-weight: bold;
+    }
+
+    .board-container {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        width: 100%;
+        height: 100%;
+        padding: 1rem;
+        box-shadow: 0 0 10px 0 rgba(0, 0, 0, 0.1);
+    }
+
+    .board-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.5rem 1rem;
+    }
+
+    .board-footer {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 0.5rem 1rem;
+    }
+    
+    .badge {
+        padding: 0.5rem 1rem;
+        border-radius: 2rem;
+        font-size: 1rem;
+        line-height: 1rem;
+    }
+
+    .badge-white {
+        border: 1px solid #000000;
+        background-color: #ffffff;
+        color: #000000;
+    }
+
+    .badge-black {
+        border: 1px solid #ffffff;
+        background-color: #000000;
+        color: #ffffff;
+    }
+
+    .badge.badge-is-turn::before {
+        content: "•";
+        font-weight: bold;
+        color: #90ff7a;
+        margin-right: 0.5rem;
+    }
+
+    .board-piece {
+        width: 100%;
+        height: 100%;
+        background-size: inherit;
+        background-repeat: no-repeat;
+        background-position: center;
+    }
+
+    .pawn-white {
+        background-image: url("images/pawn-white.png");
+    }
+
+    .pawn-black {
+        background-image: url("images/pawn-black.png");
+    }
+
+    .queen-white {
+        background-image: url("images/queen-white.png");
+    }
+
+    .queen-black {
+        background-image: url("images/queen-black.png");
+    }
+    
+    .rook-white {
+        background-image: url("images/rook-white.png");
+    }
+
+    .rook-black {
+        background-image: url("images/rook-black.png");
+    }
+    
+    .bishop-white {
+        background-image: url("images/bishop-white.png");
+    }
+
+    .bishop-black {
+        background-image: url("images/bishop-black.png");
+    }
+    
+    .king-white {
+        background-image: url("images/king-white.png");
+    }
+
+    .king-black {
+        background-image: url("images/king-black.png");
+    }
+
+    .knight-white {
+        background-image: url("images/knight-white.png");
+    }
+
+    .knight-black {
+        background-image: url("images/knight-black.png");
+    }
+</style>
+
 @code {
-    private IGame game = new Game(new HumanBlazorPlayer(PieceColor.White), new HumanBlazorPlayer(PieceColor.Black));
+    private Position? selectedCellPosition = null;
+    private List<Position> validMovesForselectedCellPosition = new List<Position>();
+
+    [Parameter]
+    public IPlayer WhitePlayer { get; set; } = new HumanBlazorPlayer(PieceColor.White);
+    [Parameter]
+    public IPlayer BlackPlayer { get; set; } = new RandomMovePlayer(PieceColor.Black);
+
+    private IGame game;
+    private Board board = new Board();
+    private bool isGameStarted = false;
 
     protected override void OnInitialized() {
-        game.Start();
+        game = new Game(WhitePlayer, BlackPlayer);
+    }
+
+    protected override async Task OnAfterRenderAsync(bool firstRender) {
+        if(firstRender) {
+            game.NextMoveHandler = async () => {
+                await InvokeAsync(() => { 
+                    board = game.GetBoard(); 
+                    StateHasChanged(); 
+                });
+            };
+            
+            board = game.GetBoard();
+        }
+    }
+
+    private async Task StartGame() {
+        isGameStarted = true;
+        StateHasChanged();
+        await game.Start();
+    }
+
+    private void HandleCellClick(Position clickedPosition) {
+        if(!isGameStarted || game.GetCurrentPlayer().IsAI() || game.IsFinished()) {
+            return;
+        }
+
+        if(selectedCellPosition == null) {
+            SetSelectedCell(clickedPosition);
+        } else if(selectedCellPosition == clickedPosition) {
+            UnsetSelectedCell();
+        } else {
+            MakeMove(clickedPosition);
+        }
+        
+        StateHasChanged();
+    }
+
+    private void MakeMove(Position toPosition) {
+        var fromPosition = selectedCellPosition;
+
+        validMovesForselectedCellPosition = game.GetValidMovesForPosition(fromPosition);
+        
+        if(validMovesForselectedCellPosition.Contains(toPosition)) {
+            game.DoMove(new Move(fromPosition, toPosition));
+            UnsetSelectedCell();
+        } 
+    }
+
+    private void UnsetSelectedCell() {
+        selectedCellPosition = null;
+        validMovesForselectedCellPosition = new List<Position>();
+    }
+
+    private void SetSelectedCell(Position position) {
+        var piece = board.GetPieceAtPosition(position);
+
+        if(piece == null) {
+            return;
+        }
+
+        if(piece.Color != game.GetCurrentPlayer().Color) {
+            return;
+        }
+
+        selectedCellPosition = position;
+        validMovesForselectedCellPosition = game.GetValidMovesForPosition(position);
     }
 }

@@ -1,7 +1,223 @@
 ﻿@page "/"
 
-@using ChessBlazor.Components.Chess
+@rendermode InteractiveServer
 
-<PageTitle>Home</PageTitle>
+<PageTitle>Chess Game</PageTitle>
 
-<ChessEngine />
+@code {
+    private List<(string Label, Func<PieceColor, IPlayer> Factory)> playerTypes = new()
+    {
+        ("Human", color => new HumanBlazorPlayer(color)),
+        ("Random AI", color => new RandomMovePlayer(color))
+    };
+
+    private string? selectedWhiteLabel;
+    private string? selectedBlackLabel;
+
+    private IPlayer? whitePlayer;
+    private IPlayer? blackPlayer;
+    
+    private bool gameStarted = false;
+
+    private bool ReadyToStart => whitePlayer != null && blackPlayer != null;
+
+    private void OnPlayerSelectionChanged()
+    {
+        var whiteOpt = playerTypes.FirstOrDefault(option => option.Label == selectedWhiteLabel);
+        whitePlayer = whiteOpt.Factory != null ? whiteOpt.Factory.Invoke(PieceColor.White) : null;
+
+        var blackOpt = playerTypes.FirstOrDefault(option => option.Label == selectedBlackLabel);
+        blackPlayer = blackOpt.Factory != null ? blackOpt.Factory.Invoke(PieceColor.Black) : null;
+    }
+    
+    private void StartGame()
+    {
+        if (ReadyToStart)
+        {
+            gameStarted = true;
+        }
+    }
+}
+
+@if (!gameStarted)
+{
+    <div class="setup-screen">
+        <div class="setup-container">
+            <h1 class="setup-title">Chess Game Setup</h1>
+            
+            <div class="player-selection-wrapper">
+                <div class="player-selection-group">
+                    <label class="player-label">
+                        <span class="label-text">White Player</span>
+                    </label>
+                    <select class="player-select" @bind="selectedWhiteLabel" @bind:after="OnPlayerSelectionChanged">
+                        <option value="">Choose player type...</option>
+                        @foreach (var option in playerTypes)
+                        {
+                            <option value="@option.Label">@option.Label</option>
+                        }
+                    </select>
+                </div>
+
+                <div class="vs-divider">vs</div>
+
+                <div class="player-selection-group">
+                    <label class="player-label">
+                        <span class="label-text">Black Player</span>
+                    </label>
+                    <select class="player-select" @bind="selectedBlackLabel" @bind:after="OnPlayerSelectionChanged">
+                        <option value="">Choose player type...</option>
+                        @foreach (var option in playerTypes)
+                        {
+                            <option value="@option.Label">@option.Label</option>
+                        }
+                    </select>
+                </div>
+            </div>
+
+            @if (!ReadyToStart)
+            {
+                <p class="hint-text">Please select both players to continue</p>
+            }
+
+            <button class="go-button" @onclick="StartGame" disabled="@(!ReadyToStart)">
+                Start Game
+            </button>
+        </div>
+    </div>
+
+    <style>
+        .setup-screen {
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            background-color: #f5f7fa;
+            padding: 2rem;
+        }
+
+        .setup-container {
+            background: white;
+            border-radius: 12px;
+            padding: 2.5rem;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.07);
+            max-width: 550px;
+            width: 100%;
+            text-align: center;
+            border: 1px solid #e5e7eb;
+        }
+
+        .setup-title {
+            font-size: 1.75rem;
+            font-weight: 600;
+            color: #1f2937;
+            margin-bottom: 2rem;
+            margin-top: 0;
+        }
+
+        .player-selection-wrapper {
+            display: flex;
+            gap: 1.5rem;
+            align-items: flex-end;
+            justify-content: center;
+            margin-bottom: 2rem;
+        }
+
+        .player-selection-group {
+            flex: 1;
+            min-width: 180px;
+        }
+
+        .player-label {
+            display: block;
+            text-align: left;
+            margin-bottom: 0.5rem;
+        }
+
+        .label-text {
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: #6b7280;
+        }
+
+        .player-select {
+            width: 100%;
+            padding: 0.625rem 0.75rem;
+            font-size: 0.95rem;
+            border: 1px solid #d1d5db;
+            border-radius: 6px;
+            background: white;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-family: inherit;
+            color: #374151;
+        }
+
+        .player-select:hover {
+            border-color: #9ca3af;
+        }
+
+        .player-select:focus {
+            outline: none;
+            border-color: #6366f1;
+            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+        }
+
+        .vs-divider {
+            font-size: 0.875rem;
+            font-weight: 500;
+            color: #9ca3af;
+            padding: 0 0.75rem;
+            margin-bottom: 0.375rem;
+        }
+
+        .hint-text {
+            color: #9ca3af;
+            font-style: italic;
+            margin-bottom: 1.5rem;
+            font-size: 0.875rem;
+        }
+
+        .go-button {
+            background-color: #4f46e5;
+            color: white;
+            border: none;
+            padding: 0.75rem 2rem;
+            font-size: 1rem;
+            font-weight: 500;
+            border-radius: 6px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            font-family: inherit;
+        }
+
+        .go-button:hover:not(:disabled) {
+            background-color: #4338ca;
+        }
+
+        .go-button:active:not(:disabled) {
+            background-color: #3730a3;
+        }
+
+        .go-button:disabled {
+            background-color: #e5e7eb;
+            color: #9ca3af;
+            cursor: not-allowed;
+        }
+
+        @@media (max-width: 600px) {
+            .player-selection-wrapper {
+                flex-direction: column;
+                align-items: stretch;
+            }
+            
+            .vs-divider {
+                padding: 0.5rem 0;
+            }
+        }
+    </style>
+}
+else
+{
+    <ChessEngine WhitePlayer="whitePlayer!" BlackPlayer="blackPlayer!" />
+}

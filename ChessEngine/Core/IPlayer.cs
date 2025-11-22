@@ -5,5 +5,6 @@ using Chess.Programming.Ago.Game;
 public interface IPlayer {
 
     PieceColor Color { get; }
-    Move GetMove(IGame game);
+    Task<Move> GetMove(IGame game);
+    bool IsAI();
 }

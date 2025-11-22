@@ -6,8 +6,9 @@ using Chess.Programming.Ago.Core;
 public class HumanConsolePlayer(PieceColor color) : IPlayer {
 
     public PieceColor Color => color;
-
-    public Move GetMove(IGame game) {
+    public bool IsAI() => false;
+    
+    public async Task<Move> GetMove(IGame game) {
         Console.WriteLine("Enter your move (e.g. a1a2):");
 
         var move = Console.ReadLine();
@@ -18,6 +19,6 @@ public class HumanConsolePlayer(PieceColor color) : IPlayer {
 
         var (from, to) = move.GetPosition();
 
-        return new Move(from, to);
+        return await Task.FromResult(new Move(from, to));
     }
 }

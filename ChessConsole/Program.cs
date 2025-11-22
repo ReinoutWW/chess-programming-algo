@@ -7,15 +7,15 @@ Console.WriteLine("Welcome to C# Chess!");
 var gameActive = true;
 IGame game = new Game(new HumanConsolePlayer(PieceColor.White), new HumanConsolePlayer(PieceColor.Black));
 
-game.Start();
+await game.Start();
 
 while (gameActive) {
     Move move;
     
     try{
-        move = game.GetCurrentPlayer().GetMove(game);
+        move = await game.GetCurrentPlayer().GetMove(game);
         
-        game.DoMove(move);
+        await game.DoMove(move);
     } catch (Exception ex) {
         Console.WriteLine(ex.Message);
         continue;
