@@ -10,7 +10,8 @@
         ("Human", color => new HumanBlazorPlayer(color)),
         ("Random AI", color => new RandomMovePlayer(color)),
         ("Very Random AI", color => new VeryRandomMovePlayer(color)),
-        ("Greedy AI", color => new GreedyPlayer(color))
+        ("Greedy AI", color => new GreedyPlayer(color)),
+        ("MiniMax AI", color => new MiniMaxPlayer(color))
     };
 
     private string? selectedWhiteLabel;

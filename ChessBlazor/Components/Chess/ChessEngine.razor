@@ -444,10 +444,8 @@
     protected override async Task OnAfterRenderAsync(bool firstRender) {
         if(firstRender) {
             game.NextMoveHandler = async () => {
-                await InvokeAsync(() => { 
-                    board = game.GetBoard(); 
-                    StateHasChanged(); 
-                });
+                board = game.GetBoard(); 
+                StateHasChanged(); 
             };
             
             board = game.GetBoard();

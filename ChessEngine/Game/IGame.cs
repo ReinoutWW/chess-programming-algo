@@ -28,4 +28,6 @@ public interface IGame {
     List<Move> GetAllValidMovesForColor(PieceColor color);
 
     string GetGameEndReason();
+
+    IGame Clone(bool simulated = false);
 }

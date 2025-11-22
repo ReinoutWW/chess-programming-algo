@@ -4,6 +4,8 @@ using Chess.Programming.Ago.Core;
 using Chess.Programming.Ago.Game;
 using Chess.Programming.Ago.Pieces;
 
+using Chess.Programming.Ago.ChessEngines.Extensions;
+
 /// <summary>
 /// The GreedyPlayer is a simple AI that will choose the move that will capture the most valuable piece.
 /// If there are no captures, it will choose a random move.
@@ -13,19 +15,6 @@ using Chess.Programming.Ago.Pieces;
 public class GreedyPlayer(PieceColor color) : IPlayer {
     public PieceColor Color => color;
     public bool IsAI() => true;
-
-    private int GetValueOfPiece(Piece piece) {
-        return piece.Type switch {
-            PieceType.Pawn => 1,
-            PieceType.Knight => 3,
-            PieceType.Bishop => 3,
-            PieceType.Rook => 5,
-            PieceType.Queen => 9,
-            PieceType.King => 100,
-            _ => 0,
-        };
-    }
-
     public async Task<Move> GetMove(IGame game) {
         var pieces = game.GetBoard().GetPiecesForColor(color);
 
@@ -39,7 +28,7 @@ public class GreedyPlayer(PieceColor color) : IPlayer {
                 var enemyPiece = game.GetBoard().GetPieceAtPosition(toPosition);
 
                 if(enemyPiece != null && enemyPiece.Color != color) {
-                    var value = GetValueOfPiece(enemyPiece);
+                    var value = enemyPiece.GetMaterialValue();
 
                     if(value > bestValue) {
                         bestValue = value;

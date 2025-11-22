@@ -7,12 +7,14 @@ namespace Chess.Programming.Ago.Game;
 public class Game(IPlayer whitePlayer, IPlayer blackPlayer, int _delayPerMoveInMilliseconds = 100) : IGame {
     public Func<Task>? NextMoveHandler { get; set; }
     private bool IsGameActive = true;
-    public IGameVisualizer Visualizer { get; } = new GameVisualizer();
+    public IGameVisualizer? Visualizer { get; set; } = new GameVisualizer();
     public IPlayer? Winner { get; private set; } = null;
     private IPlayer _currentPlayer 
         => currentColor == PieceColor.White 
             ? whitePlayer 
             : blackPlayer;
+
+    public bool IsSimulated { get; private set; } = false;
 
     public string GetGameEndReason() => _gameEndReason;
 
@@ -27,7 +29,7 @@ public class Game(IPlayer whitePlayer, IPlayer blackPlayer, int _delayPerMoveInM
     private PieceColor currentColor = PieceColor.White;
     private readonly IPlayer whitePlayer = whitePlayer;
     private readonly IPlayer blackPlayer = blackPlayer;
-    private readonly Board board = new Board();
+    private Board board = new Board();
 
     public IPlayer GetCurrentPlayer() => _currentPlayer;
 
@@ -71,7 +73,6 @@ public class Game(IPlayer whitePlayer, IPlayer blackPlayer, int _delayPerMoveInM
 
         Visualize();
         
-        // Notify UI immediately after board state changes
         if(NextMoveHandler != null) {
             await NextMoveHandler();
         }
@@ -127,7 +128,7 @@ public class Game(IPlayer whitePlayer, IPlayer blackPlayer, int _delayPerMoveInM
     }
 
     private async Task RunNextMoveIfAI() {
-        if(GetCurrentPlayer().IsAI()) {
+        if(GetCurrentPlayer().IsAI() && !IsSimulated) {
             await Task.Delay(_delayPerMoveInMilliseconds);
 
             var move = await GetCurrentPlayer().GetMove(this);
@@ -227,7 +228,7 @@ public class Game(IPlayer whitePlayer, IPlayer blackPlayer, int _delayPerMoveInM
     }
 
     public void Visualize() {
-        Visualizer.Visualize(board);
+        Visualizer?.Visualize(board);
     }
 
     public List<Position> GetValidMovesForPosition(Position position) {
@@ -251,4 +252,18 @@ public class Game(IPlayer whitePlayer, IPlayer blackPlayer, int _delayPerMoveInM
                 .ToList();
     }
 
+    public IGame Clone(bool simulated = false) {
+        var clonedBoard = board.Clone();
+        return new Game(whitePlayer, blackPlayer, 0) {
+            board = clonedBoard,
+            currentColor = currentColor,
+            _movesWithoutCapture = _movesWithoutCapture,
+            _gameEndReason = _gameEndReason,
+            Winner = Winner,
+            NextMoveHandler = null,
+            IsGameActive = IsGameActive,
+            Visualizer = null,
+            IsSimulated = simulated
+        };
+    }
 }
