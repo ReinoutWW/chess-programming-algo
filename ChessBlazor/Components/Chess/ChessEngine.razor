@@ -29,18 +29,6 @@
     }
 </div>
 
-<div>
-    Metadata:
-    Current player: @game.GetCurrentPlayer().Color
-    @if (game.IsFinished() && game.Winner == null) {
-        <span>Result: Stalemate (Draw)</span>
-    } else if (game.Winner != null) {
-        <span>Winner: @game.Winner.Color wins!</span>
-    } else {
-        <span>Winner: None</span>
-    }
-</div>
-
 <div class="notification-center">
     @if(isGameStarted && game.IsChecked(game.GetCurrentPlayer().Color)) {
         <div class="notification notification-warning">

@@ -16,11 +16,11 @@ public class Game(IPlayer whitePlayer, IPlayer blackPlayer, int _delayPerMoveInM
 
     public bool IsSimulated { get; private set; } = false;
 
-    public string GetGameEndReason() => _gameEndReason;
+    public string GetGameEndReason() => _gameEndReason.GetDescription();
 
     private int _movesWithoutCapture = 0;
     private const int MAX_MOVES_WITHOUT_CAPTURE = 50;
-    private string _gameEndReason = string.Empty;
+    private GameEndReason _gameEndReason = GameEndReason.None;
 
     public bool IsChecked(PieceColor color) {
         return IsCheck(board, color);
@@ -158,7 +158,7 @@ public class Game(IPlayer whitePlayer, IPlayer blackPlayer, int _delayPerMoveInM
         if(_movesWithoutCapture >= MAX_MOVES_WITHOUT_CAPTURE) {
             Winner = null;
             IsGameActive = false;
-            _gameEndReason = "50 moves without capture";
+            _gameEndReason = GameEndReason.FiftyMovesWithoutCapture;
             return;
         }
 
@@ -166,11 +166,11 @@ public class Game(IPlayer whitePlayer, IPlayer blackPlayer, int _delayPerMoveInM
             if(IsCheck(board, currentColor)) {
 
                 Winner = currentColor == PieceColor.White ? blackPlayer : whitePlayer;
-                _gameEndReason = "Checkmate";
+                _gameEndReason = GameEndReason.Checkmate;
                 IsGameActive = false;
             } else {
                 Winner = null;
-                _gameEndReason = "Stalemate";
+                _gameEndReason = GameEndReason.Stalemate;
                 IsGameActive = false;
             }
         }
@@ -184,13 +184,13 @@ public class Game(IPlayer whitePlayer, IPlayer blackPlayer, int _delayPerMoveInM
 
         if(whitePieces.Count == 1 && blackPieces.Count == 1) {
             Winner = null;
-            _gameEndReason = "Insufficient material";
+            _gameEndReason = GameEndReason.InsufficientMaterial;
             IsGameActive = false;
         }
 
         if(whitePieces.HasInsufficientMaterial() && blackPieces.HasInsufficientMaterial()) {
             Winner = null;
-            _gameEndReason = "Insufficient material";
+            _gameEndReason = GameEndReason.InsufficientMaterial;
             IsGameActive = false;
         }
     }
@@ -265,5 +265,10 @@ public class Game(IPlayer whitePlayer, IPlayer blackPlayer, int _delayPerMoveInM
             Visualizer = null,
             IsSimulated = simulated
         };
+    }
+
+    public bool IsDraw() {
+        return _gameEndReason == GameEndReason.InsufficientMaterial 
+            || _gameEndReason == GameEndReason.FiftyMovesWithoutCapture;
     }
 }

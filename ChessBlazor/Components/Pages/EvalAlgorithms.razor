@@ -3,6 +3,7 @@
 @using global::Chess.Programming.Ago.Core
 @using global::Chess.Programming.Ago.Game
 @using global::Chess.Programming.Ago.ChessEngines
+@using global::Chess.Programming.Ago.ChessEngines.Evaluations
 @inject IJSRuntime JSRuntime
 
 @rendermode InteractiveServer
@@ -608,7 +609,9 @@
         new() { Name = "Random", Factory = color => new RandomMovePlayer(color), IsSelected = true },
         new() { Name = "Very Random", Factory = color => new VeryRandomMovePlayer(color), IsSelected = true },
         new() { Name = "Greedy", Factory = color => new GreedyPlayer(color), IsSelected = true },
-        new() { Name = "MiniMax", Factory = color => new MiniMaxPlayer(color), IsSelected = true }
+        new() { Name = "MiniMax with Material Eval", Factory = color => new MiniMaxPlayer(color, new MaterialEvaluation()), IsSelected = true },
+        new() { Name = "MiniMax with Mobility Eval", Factory = color => new MiniMaxPlayer(color, new MobilityEvaluation()), IsSelected = true },
+        new() { Name = "MiniMax with MatMob Eval", Factory = color => new MiniMaxPlayer(color, new MaterialMobilityFunction()), IsSelected = true }
     };
 
     private IEnumerable<AlgorithmInfo> selectedAlgorithms => allAlgorithms.Where(a => a.IsSelected);

@@ -30,4 +30,6 @@ public interface IGame {
     string GetGameEndReason();
 
     IGame Clone(bool simulated = false);
+
+    bool IsDraw();
 }

@@ -1,21 +1,18 @@
 namespace Chess.Programming.Ago.ChessEngines;
 
-using System.Net.WebSockets;
-using System.Runtime.CompilerServices;
-using System.Threading.Tasks;
-using Chess.Programming.Ago.ChessEngines.Extensions;
-
+using Chess.Programming.Ago.ChessEngines.Evaluations;
 using Chess.Programming.Ago.Core;
 using Chess.Programming.Ago.Game;
-
+using System.Threading.Tasks;
 
 /// <summary>
 /// Maximize the score of the player, and minimize the score of the opponent.
 /// It will consider future moves and the score of the board after the move.
 /// </summary>
 /// <param name="color"></param>
-public class MiniMaxPlayer(PieceColor color) : IPlayer {
+public class MiniMaxPlayer(PieceColor color, IEvaluationFunction evaluationFunction) : IPlayer {
     public PieceColor Color => color;
+    private readonly IEvaluationFunction _evaluationFunction = evaluationFunction ?? new MaterialEvaluation();
     public bool IsAI() => true;
     public async Task<Move> GetMove(IGame game) {
         var bestMove = await Minimax(game, 3, int.MinValue, int.MaxValue, true);
@@ -25,7 +22,7 @@ public class MiniMaxPlayer(PieceColor color) : IPlayer {
     // Building the tree of moves and scores
     private async Task<(Move move, int score)> Minimax(IGame game, int depth, int alpha, int beta, bool maximizingPlayer) {        
         if(depth == 0) {
-            return (null, EvaluateBoardState(game, color));
+            return (null, _evaluationFunction.Evaluate(game, color));
         } else {
             // Get all valid moves
             if(maximizingPlayer) {
@@ -35,13 +32,17 @@ public class MiniMaxPlayer(PieceColor color) : IPlayer {
 
                 if(possibleValidMoves.Count == 0) {
                      if(game.IsChecked(color)) {
-                        return (null, -10000);
+                        return (null, int.MinValue);
                     } else {
-                        return (null, 0);
+                        return (null, int.MaxValue);
                     }
+                } else if(game.IsDraw()) {
+                    return (null, int.MinValue);
                 }
 
-                var bestMove = possibleValidMoves.First();
+                var bestMove = possibleValidMoves.Any() 
+                    ? possibleValidMoves[Random.Shared.Next(possibleValidMoves.Count)] 
+                    : possibleValidMoves.First();
 
                 foreach(var move in possibleValidMoves) {
                     var copiedGame = game.Clone(simulated: true);
@@ -66,12 +67,17 @@ public class MiniMaxPlayer(PieceColor color) : IPlayer {
 
                 if(possibleValidMoves.Count == 0) {
                     if(game.IsChecked(opponentColor)) {
-                        return (null, 10000);
+                        return (null, int.MaxValue);
                     } else {
-                        return (null, 0);
+                        return (null, int.MinValue);
                     }
+                } else if(game.IsDraw()) {
+                    return (null, int.MinValue);
                 }
-                var bestMove = possibleValidMoves.First();
+
+                var bestMove = possibleValidMoves.Any() 
+                    ? possibleValidMoves[Random.Shared.Next(possibleValidMoves.Count)] 
+                    : possibleValidMoves.First();
 
                 foreach(var move in possibleValidMoves) {
                     var copiedGame = game.Clone(simulated: true);
@@ -92,19 +98,5 @@ public class MiniMaxPlayer(PieceColor color) : IPlayer {
                 return (bestMove, minEval);
             }
         }
-    }
-
-    // Evaluating the board state
-
-    private int EvaluateBoardState(IGame game, PieceColor color) {
-        var allBlackPieces = game.GetBoard().GetPiecesForColor(PieceColor.Black);
-        var allWhitePieces = game.GetBoard().GetPiecesForColor(PieceColor.White);
-
-        var blackMaterialValue = allBlackPieces.Sum(piece => piece.Item1.GetMaterialValue());
-        var whiteMaterialValue = allWhitePieces.Sum(piece => piece.Item1.GetMaterialValue());
-
-        return color == PieceColor.White 
-            ? whiteMaterialValue - blackMaterialValue 
-            : blackMaterialValue - whiteMaterialValue;
     }
 }

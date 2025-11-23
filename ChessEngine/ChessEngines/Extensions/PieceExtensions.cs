@@ -11,7 +11,7 @@ public static class PieceExtensions {
             PieceType.Bishop => 3,
             PieceType.Rook => 5,
             PieceType.Queen => 9,
-            PieceType.King => 100,
+            PieceType.King => 200,
             _ => 0,
         };
     }
