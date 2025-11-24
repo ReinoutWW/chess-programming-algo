@@ -59,6 +59,11 @@
                         var row = i;
                         var column = j;
                         var position = new Position(row, column);
+                        var promotionMovesToThisSquare = validMovesForselectedCellPosition
+                            .Where(move => move.To == position && move.PromotedTo != null)
+                            .ToList();
+                        var hasPromotionOptions = promotionMovesToThisSquare.Count > 1;
+                        
                         <div class="board-row-cell 
                                 @(selectedCellPosition == new Position(row, column) ? "board-row-cell-selected" : "") 
                                 @((row + column) % 2 == 0 ? "board-row-cell-even" : "board-row-cell-odd") 
@@ -68,7 +73,20 @@
                                 @onclick="() => HandleCellClick(position)">
                             @{
                                 var piece = board.GetPieceAtPosition(position);
-                                if(piece != null) {
+                                if(hasPromotionOptions) {
+                                    <div class="promotion-options">
+                                        @foreach(var promoMove in promotionMovesToThisSquare) {
+                                            if(promoMove.PromotedTo.HasValue) {
+                                                var pieceType = promoMove.PromotedTo.Value;
+                                                var pieceColor = game.GetCurrentPlayer().Color;
+                                                <div class="promotion-option @(@pieceType.ToString().ToLower())-@(@pieceColor.ToString().ToLower())"
+                                                     @onclick="() => HandlePromotionClick(promoMove)"
+                                                     @onclick:stopPropagation="true">
+                                                </div>
+                                            }
+                                        }
+                                    </div>
+                                } else if(piece != null) {
                                     <div class="board-piece @(@piece.Type.ToString().ToLower())-@(@piece.Color.ToString().ToLower())">
                                     </div>
                                 } else {
@@ -413,6 +431,34 @@
     .knight-black {
         background-image: url("images/knight-black.png");
     }
+
+    .promotion-options {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        grid-template-rows: 1fr 1fr;
+        width: 100%;
+        height: 100%;
+        gap: 2px;
+        padding: 2px;
+    }
+
+    .promotion-option {
+        background-size: contain;
+        background-repeat: no-repeat;
+        background-position: center;
+        cursor: pointer;
+        border: 2px solid #4CAF50;
+        border-radius: 4px;
+        transition: all 0.2s ease;
+        background-color: rgba(255, 255, 255, 0.9);
+    }
+
+    .promotion-option:hover {
+        transform: scale(1.1);
+        border-color: #FFD700;
+        background-color: rgba(255, 215, 0, 0.3);
+        z-index: 10;
+    }
 </style>
 
 @code {
@@ -469,10 +515,6 @@
         StateHasChanged();
     }
 
-    private async Task ShowPawnPromotionDialog(Move move) {
-
-    }
-
     private async Task MakeMove(Position toPosition) {
         var fromPosition = selectedCellPosition;
 
@@ -481,13 +523,29 @@
         if(validMovesForselectedCellPosition.Any(move => move.To == toPosition)) {
             var move = new Move(fromPosition, toPosition);
             if(game.IsPawnPromotionMove(move)) {
-                //await ShowPawnPromotionDialog(move); // TODO: Implement pawn promotion dialog
+                // Don't auto-promote - wait for user to click promotion option
+                // If they click the square without promotion options showing, default to Queen
+                var promotionMoves = validMovesForselectedCellPosition
+                    .Where(m => m.To == toPosition && m.PromotedTo != null)
+                    .ToList();
+                
+                if(promotionMoves.Count > 1) {
+                    // Promotion options are displayed, wait for HandlePromotionClick
+                    return;
+                }
+                
                 move.PromotedTo = PieceType.Queen;
             } 
                 
             await game.DoMove(move);
             UnsetSelectedCell();
         } 
+    }
+
+    private async Task HandlePromotionClick(Move promotionMove) {
+        await game.DoMove(promotionMove);
+        UnsetSelectedCell();
+        StateHasChanged();
     }
 
     private void UnsetSelectedCell() {
