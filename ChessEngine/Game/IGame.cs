@@ -19,11 +19,13 @@ public interface IGame {
 
     IPlayer GetCurrentPlayer();
 
-    List<Position> GetValidMovesForPosition(Position position);
+    List<Move> GetValidMovesForPosition(Position position);
 
     bool IsFinished();
 
     Board GetBoard();
+
+    bool IsPawnPromotionMove(Move move);
 
     List<Move> GetAllValidMovesForColor(PieceColor color);
 
@@ -36,4 +38,6 @@ public interface IGame {
     Move? GetLastMove();
 
     public void LoadForsythEdwardsNotation(string notation);
+
+    bool IsValidMove(Move move);
 }

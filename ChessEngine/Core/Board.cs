@@ -38,6 +38,20 @@ public class Board {
         ApplyCastlingRights(castlingRights);
     }
 
+    public bool IsPawnPromotionMove(Move move) {
+        var fromPiece = pieces[move.From.Row, move.From.Column];
+
+        if(fromPiece == null) {
+            return false;
+        }
+
+        if(fromPiece.Type == PieceType.Pawn && (move.To.Row == 0 || move.To.Row == 7)) {
+            return true;
+        }
+
+        return false;
+    }
+
     private void ApplyCastlingRights(string castlingRights) {
         // If no castling rights, mark all kings and rooks as moved
         if(castlingRights == "-") {
@@ -177,6 +191,8 @@ public class Board {
             moveResult = ApplyCastlingMove(move);
         } else if(IsEnPassantMove(move)) {
             moveResult = ApplyEnPassantMove(move);
+        } else if(IsPawnPromotionMove(move)) {
+            moveResult = ApplyPawnPromotionMove(move);
         } else {
             moveResult = ApplyRegularMove(move);
         }
@@ -184,6 +200,39 @@ public class Board {
         lastMove = move;
 
         return moveResult;
+    }
+
+    private MoveResult ApplyPawnPromotionMove(Move move) {
+        var fromPiece = pieces[move.From.Row, move.From.Column];
+        var toPiece = pieces[move.To.Row, move.To.Column];
+        var moveResult = new MoveResult(false, null);
+
+        if(fromPiece == null) {
+            throw new InvalidMoveException("Invalid pawn promotion move");
+        }
+
+        if(toPiece != null) {
+            capturedPieces.Add(toPiece);
+            moveResult = new MoveResult(true, toPiece);
+        }
+
+        var promotionChoice = move.PromotedTo 
+            ?? throw new InvalidMoveException("Invalid pawn promotion move");
+
+        pieces[move.To.Row, move.To.Column] = CreatePromotedPiece(fromPiece.Color, promotionChoice);
+        pieces[move.From.Row, move.From.Column] = null;
+
+        return moveResult;
+    }
+
+    private Piece CreatePromotedPiece(PieceColor color, PieceType pieceType) {
+        return pieceType switch {
+            PieceType.Queen => new Queen(color),
+            PieceType.Rook => new Rook(color),
+            PieceType.Bishop => new Bishop(color),
+            PieceType.Knight => new Knight(color),
+            _ => throw new InvalidMoveException("Invalid pawn promotion move"),
+        };
     }
 
     private bool IsEnPassantMove(Move move) {

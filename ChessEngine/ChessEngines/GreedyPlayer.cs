@@ -24,15 +24,15 @@ public class GreedyPlayer(PieceColor color) : IPlayer {
         foreach(var piece in pieces) {
             var validMoves = game.GetValidMovesForPosition(piece.Item2);
 
-            foreach(var toPosition in validMoves) {
-                var enemyPiece = game.GetBoard().GetPieceAtPosition(toPosition);
+            foreach(var move in validMoves) {
+                var enemyPiece = game.GetBoard().GetPieceAtPosition(move.To);
 
                 if(enemyPiece != null && enemyPiece.Color != color) {
                     var value = enemyPiece.GetMaterialValue();
 
                     if(value > bestValue) {
                         bestValue = value;
-                        bestMove = new Move(piece.Item2, toPosition);
+                        bestMove = new Move(piece.Item2, move.To);
                     }
                 }
             }

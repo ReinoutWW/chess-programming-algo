@@ -22,7 +22,8 @@ public class RandomMovePlayer(PieceColor color) : IPlayer {
 
             Console.WriteLine("Valid moves found!");
 
-            return new Move(piece.Item2, validMoves[Random.Shared.Next(validMoves.Count)]);
+            var randomMove = validMoves[Random.Shared.Next(validMoves.Count)];
+            return new Move(piece.Item2, randomMove.To);
         }
 
         Console.WriteLine("No valid moves found!");

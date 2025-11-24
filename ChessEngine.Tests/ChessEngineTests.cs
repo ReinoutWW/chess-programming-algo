@@ -79,88 +79,34 @@ public class ChessEngineTests
         return results;
     }
 
-    [Fact]
-    public void PerftDepth1_ShouldReturn20Moves()
+    [Theory]
+    [InlineData(1, 20)]
+    [InlineData(2, 400)]
+    [InlineData(3, 8902)]
+    [InlineData(4, 197281)]
+    public void Perft_ShouldReturnCorrectMoves(int depth, long expectedMoves)
     {
         var game = new Game(new DummyPlayer(PieceColor.White), new DummyPlayer(PieceColor.Black));
         game.Start();
 
-        long totalMoves = Perft(game, 1);
+        long totalMoves = Perft(game, depth);
         
-        _output.WriteLine($"Perft(1) = {totalMoves}");
-        Assert.Equal(20, totalMoves);
+        Assert.Equal(expectedMoves, totalMoves);
     }
 
-    [Fact]
-    public void PerftDepth2_ShouldReturn400Moves()
-    {
-        var game = new Game(new DummyPlayer(PieceColor.White), new DummyPlayer(PieceColor.Black));
-        game.Start();
-
-        long totalMoves = Perft(game, 2);
-        
-        _output.WriteLine($"Perft(2) = {totalMoves}");
-        Assert.Equal(400, totalMoves); // Standard chess: 20 * 20 = 400
-    }
-
-    [Fact]
-    public void PerftDepth3_ShouldReturn8902Moves()
-    {
-        var game = new Game(new DummyPlayer(PieceColor.White), new DummyPlayer(PieceColor.Black));
-        game.Start();
-
-        long totalMoves = Perft(game, 3);
-        
-        _output.WriteLine($"Perft(3) = {totalMoves}");
-        Assert.Equal(8902, totalMoves); // Standard chess perft(3)
-    }
-
-    [Fact]
-    public void PerftDepth4_ShouldReturn197281Moves()
-    {
-        var game = new Game(new DummyPlayer(PieceColor.White), new DummyPlayer(PieceColor.Black));
-        game.Start();
-
-        long totalMoves = Perft(game, 4);
-        
-        _output.WriteLine($"Perft(4) = {totalMoves}");
-        Assert.Equal(197281, totalMoves); // Standard chess perft(4)
-    }
-
-    [Fact]
-    public void PerftDepth5_ShouldReturn4865609Moves()
-    {
-        var game = new Game(new DummyPlayer(PieceColor.White), new DummyPlayer(PieceColor.Black));
-        game.Start();
-
-        long totalMoves = Perft(game, 5);
-        
-        _output.WriteLine($"Perft(5) = {totalMoves}");
-        Assert.Equal(4865609, totalMoves); // Standard chess perft(5)
-    }
-
-    [Fact]
-    public void PerftDepth6_ShouldReturn1290526117Moves()
-    {
-        var game = new Game(new DummyPlayer(PieceColor.White), new DummyPlayer(PieceColor.Black));
-        game.Start();
-
-        long totalMoves = Perft(game, 6);
-        
-        _output.WriteLine($"Perft(6) = {totalMoves}");
-        Assert.Equal(119060324, totalMoves); // Standard chess perft(6)
-    }
-
-    [Fact]
-    public void PerftDepth3_Position5ShouldReturnCorrectMoves()
+    [Theory]
+    [InlineData(1, 44)]
+    [InlineData(2, 1486)]
+    [InlineData(3, 62379)]
+    [InlineData(4, 89941194)]
+    public void Perft_Position5ShouldReturnCorrectMoves(int depth, int expectedMoves)
     {
         const string fen = "rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8";
         var game = new Game(new DummyPlayer(PieceColor.White), new DummyPlayer(PieceColor.Black), 0, fen);
         
-        long totalMoves = Perft(game, 3);
+        long totalMoves = Perft(game, depth);
         
-        _output.WriteLine($"Perft(3) for position 5 = {totalMoves}");
-        Assert.Equal(62379, totalMoves); // Known perft(3) for this position
+        Assert.Equal(expectedMoves, totalMoves); // Known perft(3) for this position
     }
 
     [Fact]

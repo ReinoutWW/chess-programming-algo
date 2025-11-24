@@ -64,7 +64,7 @@
                                 @((row + column) % 2 == 0 ? "board-row-cell-even" : "board-row-cell-odd") 
                                 @(game.GetLastMove()?.From == position ? "board-row-cell-last-move-from" : "")
                                 @(game.GetLastMove()?.To == position ? "board-row-cell-last-move-to" : "")
-                                @(validMovesForselectedCellPosition.Contains(new Position(row, column)) ? "board-row-cell-valid-move" : "")"
+                                @(validMovesForselectedCellPosition.Any(move => move.To == new Position(row, column)) ? "board-row-cell-valid-move" : "")"
                                 @onclick="() => HandleCellClick(position)">
                             @{
                                 var piece = board.GetPieceAtPosition(position);
@@ -417,7 +417,7 @@
 
 @code {
     private Position? selectedCellPosition = null;
-    private List<Position> validMovesForselectedCellPosition = new List<Position>();
+    private List<Move> validMovesForselectedCellPosition = new List<Move>();
 
     [Parameter]
     public IPlayer WhitePlayer { get; set; } = new HumanBlazorPlayer(PieceColor.White);
@@ -433,7 +433,7 @@
     private bool isGameStarted = false;
 
     protected override void OnInitialized() {
-        game = new Game(WhitePlayer, BlackPlayer, DelayPerMoveInMilliseconds);
+        game = new Game(WhitePlayer, BlackPlayer, DelayPerMoveInMilliseconds, "rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8");
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender) {
@@ -469,20 +469,30 @@
         StateHasChanged();
     }
 
-    private void MakeMove(Position toPosition) {
+    private async Task ShowPawnPromotionDialog(Move move) {
+
+    }
+
+    private async Task MakeMove(Position toPosition) {
         var fromPosition = selectedCellPosition;
 
         validMovesForselectedCellPosition = game.GetValidMovesForPosition(fromPosition);
         
-        if(validMovesForselectedCellPosition.Contains(toPosition)) {
-            game.DoMove(new Move(fromPosition, toPosition));
+        if(validMovesForselectedCellPosition.Any(move => move.To == toPosition)) {
+            var move = new Move(fromPosition, toPosition);
+            if(game.IsPawnPromotionMove(move)) {
+                //await ShowPawnPromotionDialog(move); // TODO: Implement pawn promotion dialog
+                move.PromotedTo = PieceType.Queen;
+            } 
+                
+            await game.DoMove(move);
             UnsetSelectedCell();
         } 
     }
 
     private void UnsetSelectedCell() {
         selectedCellPosition = null;
-        validMovesForselectedCellPosition = new List<Position>();
+        validMovesForselectedCellPosition = new List<Move>();
     }
 
     private void SetSelectedCell(Position position) {

@@ -38,7 +38,7 @@ public class Game : IGame {
     private GameEndReason _gameEndReason = GameEndReason.None;
 
     public bool IsChecked(PieceColor color) {
-        return IsCheck(board, color);
+        return board.IsCheck(color);
     }
 
     private PieceColor currentColor = PieceColor.White;
@@ -47,28 +47,6 @@ public class Game : IGame {
     private Board board = new Board();
 
     public IPlayer GetCurrentPlayer() => _currentPlayer;
-
-    private bool IsCheck(Board board, PieceColor currentColor) {
-        var hasValidMoveOnKing = false;
-
-        var opponentColor = currentColor == PieceColor.White ? PieceColor.Black : PieceColor.White;
-
-        var enemyPieces = board.GetPiecesForColor(opponentColor);
-
-        var king = board.GetPiecesForColor(currentColor)
-            .FirstOrDefault(piece => piece.Item1.Type == PieceType.King);
-        
-        foreach(var enemyPiece in enemyPieces) {
-            var canMakeMoveToKing = board.IsValidMove(new Move(enemyPiece.Item2, king.Item2), opponentColor);
-            
-            if(canMakeMoveToKing) {
-                hasValidMoveOnKing = true;
-                break;
-            }
-        }
-
-        return hasValidMoveOnKing;
-    }
 
     public async Task DoMove(Move move) {
         if(!IsValidMove(move)) {
@@ -99,6 +77,9 @@ public class Game : IGame {
 
     public Board GetBoard() => board;
 
+    public bool IsPawnPromotionMove(Move move) 
+        => board.IsPawnPromotionMove(move);
+
     public async Task Start() {
         Visualize();
 
@@ -112,22 +93,6 @@ public class Game : IGame {
     }
 
     public bool IsFinished() => !IsGameActive;
-
-    private bool HasAnyLegalMoves(PieceColor color) {
-        var pieces = board.GetPiecesForColor(color);
-
-        foreach(var piece in pieces) {
-            for (int i = 0; i < 8; i++) {
-                for (int j = 0; j < 8; j++) {
-                    if (IsValidMove(new Move(piece.Item2, new Position(i, j)))) {
-                        return true;
-                    }
-                }
-            }   
-        }
-
-        return false;
-    }
 
     private async Task NextTurn() {
         currentColor = 
@@ -157,16 +122,12 @@ public class Game : IGame {
         var pieces = board.GetPiecesForColor(color);
 
         var validMoves = new List<Move>();
-        foreach(var piece in pieces) {
-            for(int i = 0; i < 8; i++) {
-                for(int j = 0; j < 8; j++) {
-                    if(IsValidMove(new Move(piece.Item2, new Position(i, j)))) {
-                        validMoves.Add(new Move(piece.Item2, new Position(i, j)));
-                    }
-                }
-            }
-        }
         
+        foreach(var piece in pieces) {
+            var validMovesForPiece = GetValidMovesForPosition(piece.Item2);
+            validMoves.AddRange(validMovesForPiece);
+        }
+
         return validMoves;
     }
 
@@ -179,8 +140,8 @@ public class Game : IGame {
             return;
         }
 
-        if(!HasAnyLegalMoves(currentColor)) {
-            if(IsCheck(board, currentColor)) {
+        if(!this.HasAnyLegalMoves(currentColor)) {
+            if(board.IsCheck(currentColor)) {
 
                 Winner = currentColor == PieceColor.White ? blackPlayer : whitePlayer;
                 _gameEndReason = GameEndReason.Checkmate;
@@ -192,14 +153,7 @@ public class Game : IGame {
             }
         }
 
-        ValidateIfInsufficientMaterial();
-    }
-
-    private void ValidateIfInsufficientMaterial() {
-        var whitePieces = board.GetPiecesForColor(PieceColor.White);
-        var blackPieces = board.GetPiecesForColor(PieceColor.Black);
-
-        if(whitePieces.HasInsufficientMaterial() && blackPieces.HasInsufficientMaterial()) {
+        if(board.HasInsufficientMaterialForDraw()) {
             Winner = null;
             _gameEndReason = GameEndReason.InsufficientMaterial;
             IsGameActive = false;
@@ -213,36 +167,24 @@ public class Game : IGame {
     /// </summary>
     /// <param name="move"></param>
     /// <returns></returns>
-    private bool IsValidMove(Move move) {
+    public bool IsValidMove(Move move) {
         var isValidOnBoard = board.IsValidMove(move, currentColor);
         
         if(!isValidOnBoard) {
             return false;
         }
 
-        var currentIserIsCheckedAfterMove = CurrentIserIsCheckedAfterMove(board, move);
+        var currentPlayerIsCheckedAfterMove = board.IsCurrentPlayerCheckedAfterMove(move, currentColor);
 
         return isValidOnBoard
-            && !currentIserIsCheckedAfterMove;
-    }
-
-    private bool CurrentIserIsCheckedAfterMove(Board board, Move move) {
-        var simulatedBoard = board.Clone();
-
-        simulatedBoard.ApplyMove(move);
-
-        if(IsCheck(simulatedBoard, currentColor)) {
-            return true;
-        } 
-
-        return false;
+            && !currentPlayerIsCheckedAfterMove;
     }
 
     public void Visualize() {
         Visualizer?.Visualize(board);
     }
 
-    public List<Position> GetValidMovesForPosition(Position position) {
+    public List<Move> GetValidMovesForPosition(Position position) {
         var piece = board.GetPieceAtPosition(position);
 
         var validmoves = new List<Move>();
@@ -252,15 +194,20 @@ public class Game : IGame {
                     continue;
                 }
 
-                if(IsValidMove(new Move(position, new Position(i, j)))) {
+                if(IsPawnPromotionMove(new Move(position, new Position(i, j)))) {
+                    var promotionChoices = new List<PieceType> { PieceType.Queen, PieceType.Rook, PieceType.Bishop, PieceType.Knight };
+                    foreach(var promotionChoice in promotionChoices) {
+                        if(IsValidMove(new Move(position, new Position(i, j), promotionChoice))) {
+                            validmoves.Add(new Move(position, new Position(i, j), promotionChoice));
+                        }
+                    }
+                } else if(IsValidMove(new Move(position, new Position(i, j)))) {
                     validmoves.Add(new Move(position, new Position(i, j)));
                 }
             }
         }
 
-        return validmoves
-            .Select(move => move.To)
-                .ToList();
+        return validmoves;
     }
 
     public IGame Clone(bool simulated = false) {
