@@ -4,7 +4,22 @@ using Chess.Programming.Ago.Pieces;
 
 namespace Chess.Programming.Ago.Game;
 
-public class Game(IPlayer whitePlayer, IPlayer blackPlayer, int _delayPerMoveInMilliseconds = 100) : IGame {
+public class Game : IGame {
+    public Game(IPlayer whitePlayer, IPlayer blackPlayer, int _delayPerMoveInMilliseconds = 100, string? starterPosition = null)
+    {
+        this.whitePlayer = whitePlayer;
+        this.blackPlayer = blackPlayer;
+        this._delayPerMoveInMilliseconds = _delayPerMoveInMilliseconds;
+
+        if(starterPosition != null) {
+            this.starterPosition = starterPosition;
+        }
+
+        LoadForsythEdwardsNotation(this.starterPosition);
+    }
+
+    private int _delayPerMoveInMilliseconds = 100;
+    private string starterPosition = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
     public Func<Task>? NextMoveHandler { get; set; }
     private bool IsGameActive = true;
     public IGameVisualizer? Visualizer { get; set; } = new GameVisualizer();
@@ -27,8 +42,8 @@ public class Game(IPlayer whitePlayer, IPlayer blackPlayer, int _delayPerMoveInM
     }
 
     private PieceColor currentColor = PieceColor.White;
-    private readonly IPlayer whitePlayer = whitePlayer;
-    private readonly IPlayer blackPlayer = blackPlayer;
+    private readonly IPlayer whitePlayer;
+    private readonly IPlayer blackPlayer;
     private Board board = new Board();
 
     public IPlayer GetCurrentPlayer() => _currentPlayer;
@@ -266,5 +281,18 @@ public class Game(IPlayer whitePlayer, IPlayer blackPlayer, int _delayPerMoveInM
     public bool IsDraw() {
         return _gameEndReason == GameEndReason.InsufficientMaterial 
             || _gameEndReason == GameEndReason.FiftyMovesWithoutCapture;
+    }
+
+    public void LoadForsythEdwardsNotation(string notation) {
+        var parts = notation.Split(' ');
+        var turn = parts[1];
+
+        currentColor = turn == "w" ? PieceColor.White : PieceColor.Black;
+        
+        var board = new Board();
+
+        board.LoadForsythEdwardsNotation(notation);
+        
+        this.board = board;
     }
 }

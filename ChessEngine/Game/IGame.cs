@@ -34,4 +34,6 @@ public interface IGame {
     bool IsDraw();
 
     Move? GetLastMove();
+
+    public void LoadForsythEdwardsNotation(string notation);
 }

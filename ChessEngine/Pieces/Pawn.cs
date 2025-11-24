@@ -6,7 +6,7 @@ using Chess.Programming.Ago.Core;
 
 public class Pawn(PieceColor color) : Piece(color, PieceType.Pawn) {
 
-    private readonly int _direction = color == PieceColor.White ? 1 : -1;
+    private readonly int _direction = color == PieceColor.White ? -1 : 1;
 
     public override bool IsValidMove(Board board, Move move) {
         bool isAllowedForwardMove = 
@@ -66,7 +66,7 @@ public class Pawn(PieceColor color) : Piece(color, PieceType.Pawn) {
             possibleOpponentEnPassantPositions.Add(new Position(lastMove.To.Row, lastMove.To.Column - 1));
         }
 
-        var direction = lastMovePiece.Color == PieceColor.White ? -1 : 1;
+        var direction = lastMovePiece.Color == PieceColor.White ? 1 : -1;
 
         foreach(var possibleOpponentEnPassantPosition in possibleOpponentEnPassantPositions) {
             var pieceAtPosition = board.GetPieceAtPosition(possibleOpponentEnPassantPosition);
@@ -109,7 +109,7 @@ public class Pawn(PieceColor color) : Piece(color, PieceType.Pawn) {
     }
 
     private bool IsStarterPositionForColor(PieceColor color, int row) {
-        return color == PieceColor.White ? row == 1 : row == 6;
+        return color == PieceColor.White ? row == 6 : row == 1;
     }
 
     public override Piece Clone() {

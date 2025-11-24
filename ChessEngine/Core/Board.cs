@@ -9,7 +9,135 @@ public class Board {
     private Move? lastMove = null;
 
     public Board() {
-        SetupInitialPieces();
+    }
+
+    public void LoadForsythEdwardsNotation(string notation) {
+        var parts = notation.Split(' ');
+
+        var board = parts[0];
+        var rows = board.Split('/');
+        var castlingRights = parts[2];
+
+        for(int i = 0; i < 8; i++) {
+            var row = rows[i];
+            int columnIndex = 0; // Board column position
+            
+            for(int stringIndex = 0; stringIndex < row.Length; stringIndex++) {
+                char c = row[stringIndex];
+                
+                if(char.IsDigit(c)) {
+                    columnIndex += int.Parse(c.ToString());
+                } else {
+                    var piece = CharToPiece(c);
+                    pieces[i, columnIndex] = piece;
+                    columnIndex++;
+                }
+            }
+        }
+
+        ApplyCastlingRights(castlingRights);
+    }
+
+    private void ApplyCastlingRights(string castlingRights) {
+        // If no castling rights, mark all kings and rooks as moved
+        if(castlingRights == "-") {
+            MarkAllKingsAndRooksAsMoved();
+            return;
+        }
+
+        // By default, assume all kings and rooks have moved
+        MarkAllKingsAndRooksAsMoved();
+
+        // Then, mark specific pieces as NOT moved based on castling rights
+        bool whiteKingSide = castlingRights.Contains('K');
+        bool whiteQueenSide = castlingRights.Contains('Q');
+        bool blackKingSide = castlingRights.Contains('k');
+        bool blackQueenSide = castlingRights.Contains('q');
+
+        // Apply rights for White
+        if(whiteKingSide || whiteQueenSide) {
+            SetCastlingRightForColor(PieceColor.White, whiteKingSide, whiteQueenSide);
+        }
+
+        // Apply rights for Black
+        if(blackKingSide || blackQueenSide) {
+            SetCastlingRightForColor(PieceColor.Black, blackKingSide, blackQueenSide);
+        }
+    }
+
+    private void MarkAllKingsAndRooksAsMoved() {
+        for(int i = 0; i < 8; i++) {
+            for(int j = 0; j < 8; j++) {
+                var piece = pieces[i, j];
+                if(piece != null && (piece.Type == PieceType.King || piece.Type == PieceType.Rook)) {
+                    piece.HasMoved = true;
+                }
+            }
+        }
+    }
+
+    private void SetCastlingRightForColor(PieceColor color, bool kingSide, bool queenSide) {
+        // Find and mark the king as not moved
+        var kingPosition = FindKingPosition(color);
+        if(kingPosition != null) {
+            var king = pieces[kingPosition.Row, kingPosition.Column];
+            if(king != null) {
+                king.HasMoved = false;
+            }
+        }
+
+        // Mark rooks as not moved based on castling rights
+        int rookRow = color == PieceColor.White ? 7 : 0; // White on row 7, Black on row 0 (with your flipped board)
+
+        if(kingSide) {
+            // Kingside rook is on column 7 (H-file)
+            var rook = pieces[rookRow, 7];
+            if(rook?.Type == PieceType.Rook && rook.Color == color) {
+                rook.HasMoved = false;
+            }
+        }
+
+        if(queenSide) {
+            // Queenside rook is on column 0 (A-file)
+            var rook = pieces[rookRow, 0];
+            if(rook?.Type == PieceType.Rook && rook.Color == color) {
+                rook.HasMoved = false;
+            }
+        }
+    }
+
+    private Position? FindKingPosition(PieceColor color) {
+        for(int i = 0; i < 8; i++) {
+            for(int j = 0; j < 8; j++) {
+                var piece = pieces[i, j];
+                if(piece?.Type == PieceType.King && piece.Color == color) {
+                    return new Position(i, j);
+                }
+            }
+        }
+        return null;
+    }
+
+    private static Piece CharToPiece(char c) {
+        var color = char.IsUpper(c) ? PieceColor.White : PieceColor.Black;
+        var lowerChar = char.ToLower(c);
+        
+        switch(lowerChar) {
+            case 'r':
+                return new Rook(color);
+            case 'n':
+                return new Knight(color);
+            case 'b':
+                return new Bishop(color);
+            case 'q':
+                return new Queen(color);
+            case 'k':
+                return new King(color);
+            case 'p':
+                return new Pawn(color);
+            default:
+                throw new InvalidMoveException($"Invalid piece: {c}");
+        }
     }
 
     public Move? GetLastMove() => lastMove;
@@ -28,11 +156,6 @@ public class Board {
     }
 
     public Piece[,] GetPieces() => pieces;
-
-    private void SetupInitialPieces() {
-        SetupForColor(PieceColor.White);
-        SetupForColor(PieceColor.Black);
-    }
 
     /// <summary>
     /// Applies a move to the board and returns true if it was a capture
@@ -202,31 +325,6 @@ public class Board {
 
     public List<Piece> GetCapturedPieces() {
         return capturedPieces;
-    }
-
-    private void SetupForColor(PieceColor color) {
-        int pawnRow = 
-            color == PieceColor.White 
-                ? 1 
-                : 6;
-        
-        for (int i = 0; i < 8; i++) {
-            pieces[pawnRow, i] = new Pawn(color);
-        }
-
-        int row = 
-            color == PieceColor.White 
-                ? 0 
-                : 7;
-
-        pieces[row, 0] = new Rook(color);
-        pieces[row, 1] = new Knight(color);
-        pieces[row, 2] = new Bishop(color);
-        pieces[row, 3] = new Queen(color);
-        pieces[row, 4] = new King(color);
-        pieces[row, 5] = new Bishop(color);
-        pieces[row, 6] = new Knight(color);
-        pieces[row, 7] = new Rook(color);
     }
 
     public Board Clone() {

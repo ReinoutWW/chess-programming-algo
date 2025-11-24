@@ -49,8 +49,8 @@
 
     <div class="board-container">
         <div class="board-header">
-            <div class="badge badge-white @(game.GetCurrentPlayer().Color == PieceColor.White ? "badge-is-turn" : "")">White</div>
-            <div class="badge badge-algorithm">@WhitePlayer.GetType().Name</div>
+            <div class="badge badge-black @(game.GetCurrentPlayer().Color == PieceColor.Black ? "badge-is-turn" : "")">Black</div>
+            <div class="badge badge-algorithm">@BlackPlayer.GetType().Name</div>
         </div>
         <div class="board-body">
             @for(int i = 0; i < 8; i++) {
@@ -82,8 +82,8 @@
             }
         </div>
         <div class="board-footer">
-            <div class="badge badge-black @(game.GetCurrentPlayer().Color == PieceColor.Black ? "badge-is-turn" : "")">Black</div>
-            <div class="badge badge-algorithm">@BlackPlayer.GetType().Name</div>
+            <div class="badge badge-white @(game.GetCurrentPlayer().Color == PieceColor.White ? "badge-is-turn" : "")">White</div>
+            <div class="badge badge-algorithm">@WhitePlayer.GetType().Name</div>
         </div>
     </div>
 

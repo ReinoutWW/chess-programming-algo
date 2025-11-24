@@ -152,6 +152,18 @@ public class ChessEngineTests
     }
 
     [Fact]
+    public void PerftDepth3_Position5ShouldReturnCorrectMoves()
+    {
+        const string fen = "rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8";
+        var game = new Game(new DummyPlayer(PieceColor.White), new DummyPlayer(PieceColor.Black), 0, fen);
+        
+        long totalMoves = Perft(game, 3);
+        
+        _output.WriteLine($"Perft(3) for position 5 = {totalMoves}");
+        Assert.Equal(62379, totalMoves); // Known perft(3) for this position
+    }
+
+    [Fact]
     public void PerftDivide_Depth1_ShowsAllInitialMoves()
     {
         var game = new Game(new DummyPlayer(PieceColor.White), new DummyPlayer(PieceColor.Black));
