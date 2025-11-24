@@ -2,16 +2,17 @@ namespace Chess.Programming.Ago.Core;
 
 using Chess.Programming.Ago.Pieces;
 using Chess.Programming.Ago.Core.Exceptions;
-using System.ComponentModel;
-using System.Runtime.CompilerServices;
 
 public class Board {
     private readonly Piece[,] pieces = new Piece[8, 8];
     private readonly List<Piece> capturedPieces = new List<Piece>();
+    private Move? lastMove = null;
 
     public Board() {
         SetupInitialPieces();
     }
+
+    public Move? GetLastMove() => lastMove;
 
     public List<(Piece, Position)> GetPiecesForColor(PieceColor color) {
         var pieces = new List<(Piece, Position)>();
@@ -47,11 +48,60 @@ public class Board {
             throw new InvalidMoveException("No piece at from position");
         }
 
+        var moveResult = new MoveResult(false, null);
+
         if(IsCastlingMove(move, fromPiece.Color)) {
-            return ApplyCastlingMove(move);
+            moveResult = ApplyCastlingMove(move);
+        } else if(IsEnPassantMove(move)) {
+            moveResult = ApplyEnPassantMove(move);
         } else {
-            return ApplyRegularMove(move);
+            moveResult = ApplyRegularMove(move);
         }
+
+        lastMove = move;
+
+        return moveResult;
+    }
+
+    private bool IsEnPassantMove(Move move) {
+        var movingPiece = GetPieceAtPosition(move.From);
+        var destinationPiece = GetPieceAtPosition(move.To);
+        
+        // Is it a pawn moving diagonally to an empty square?
+        if(movingPiece == null || movingPiece.Type != PieceType.Pawn) {
+            return false;
+        }
+        
+        // Is it moving diagonally?
+        bool isDiagonal = move.From.Column != move.To.Column;
+        
+        // Is the destination empty?
+        bool destinationEmpty = destinationPiece == null;
+        
+        return isDiagonal && destinationEmpty;
+    }
+
+    private MoveResult ApplyEnPassantMove(Move move) {
+        var lastMoveThatWillBeEnpassanted = GetLastMove();
+        
+        if(lastMoveThatWillBeEnpassanted == null) {
+            throw new InvalidMoveException("Invalid en passant move: no last move");
+        }
+        
+        var lastMovedPawn = GetPieceAtPosition(lastMoveThatWillBeEnpassanted.To);
+        var movingPawn = GetPieceAtPosition(move.From);
+
+        if(lastMovedPawn == null || movingPawn == null) {
+            throw new InvalidMoveException("Invalid en passant move");
+        }
+
+        pieces[lastMoveThatWillBeEnpassanted.To.Row, lastMoveThatWillBeEnpassanted.To.Column] = null;
+        pieces[move.From.Row, move.From.Column] = null;
+        pieces[move.To.Row, move.To.Column] = movingPawn;
+
+        movingPawn.HasMoved = true;
+
+        return new MoveResult(true, lastMovedPawn);
     }
 
     private MoveResult ApplyCastlingMove(Move move) {
@@ -127,6 +177,10 @@ public class Board {
     }
 
     private static bool IsOutOfBounds(Move move) {
+        if(move == null || move.From == null || move.To == null) {
+            return true;
+        }
+        
         return 
             move.From.Row < 0 || 
             move.From.Row > 7 || 
@@ -139,6 +193,10 @@ public class Board {
     }
 
     public Piece? GetPieceAtPosition(Position position) {
+        if(position.Row < 0 || position.Row > 7 || position.Column < 0 || position.Column > 7) {
+            return null;
+        }
+
         return pieces[position.Row, position.Column];
     }
 
@@ -187,6 +245,7 @@ public class Board {
         }
 
         clonedBoard.capturedPieces.AddRange(capturedPieces);
+        clonedBoard.lastMove = lastMove;
 
         return clonedBoard;
     }

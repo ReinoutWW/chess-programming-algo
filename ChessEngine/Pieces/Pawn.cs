@@ -33,7 +33,56 @@ public class Pawn(PieceColor color) : Piece(color, PieceType.Pawn) {
 
         return isAllowedForwardMove 
             || isAllowedDiagonalCapture 
-            || legalTwoSquareMove;
+            || legalTwoSquareMove
+            || IsAllowedEnPassant(move, board);
+    }
+
+    private bool IsAllowedEnPassant(Move move, Board board) {
+        var lastMove = board.GetLastMove();
+
+        if(lastMove == null) {
+            return false;
+        }
+
+        var movedCells = Math.Abs(lastMove.From.Row - lastMove.To.Row);
+
+        if(lastMove == null || movedCells != 2) {
+            return false;
+        }
+
+        var lastMovePiece = board.GetPieceAtPosition(lastMove.To);
+
+        if(lastMovePiece == null || lastMovePiece.Type != PieceType.Pawn) {
+            return false;
+        }
+
+        var possibleOpponentEnPassantPositions = new List<Position>();
+
+        if(lastMove.To.Column < 7) {
+            possibleOpponentEnPassantPositions.Add(new Position(lastMove.To.Row, lastMove.To.Column + 1));        
+        }
+
+        if(lastMove.To.Column > 0) {
+            possibleOpponentEnPassantPositions.Add(new Position(lastMove.To.Row, lastMove.To.Column - 1));
+        }
+
+        var direction = lastMovePiece.Color == PieceColor.White ? -1 : 1;
+
+        foreach(var possibleOpponentEnPassantPosition in possibleOpponentEnPassantPositions) {
+            var pieceAtPosition = board.GetPieceAtPosition(possibleOpponentEnPassantPosition);
+
+            if(pieceAtPosition != null 
+                && pieceAtPosition.Color != lastMovePiece.Color 
+                && pieceAtPosition.Type == PieceType.Pawn
+                && possibleOpponentEnPassantPosition == move.From
+            ) {
+                if(move.To == new Position(lastMove.To.Row + direction, lastMove.To.Column)) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     private bool IsEmptySquare(Board board, Position position) {

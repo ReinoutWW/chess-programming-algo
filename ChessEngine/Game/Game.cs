@@ -31,8 +31,6 @@ public class Game(IPlayer whitePlayer, IPlayer blackPlayer, int _delayPerMoveInM
     private readonly IPlayer blackPlayer = blackPlayer;
     private Board board = new Board();
 
-    private Move? _lastMove = null;
-
     public IPlayer GetCurrentPlayer() => _currentPlayer;
 
     private bool IsCheck(Board board, PieceColor currentColor) {
@@ -75,8 +73,6 @@ public class Game(IPlayer whitePlayer, IPlayer blackPlayer, int _delayPerMoveInM
 
         Visualize();
 
-        _lastMove = move;
-
         if(NextMoveHandler != null) {
             await NextMoveHandler();
         }
@@ -84,7 +80,7 @@ public class Game(IPlayer whitePlayer, IPlayer blackPlayer, int _delayPerMoveInM
         await NextTurn();
     }
 
-    public Move? GetLastMove() => _lastMove;
+    public Move? GetLastMove() => board.GetLastMove();
 
     public Board GetBoard() => board;
 
@@ -211,7 +207,7 @@ public class Game(IPlayer whitePlayer, IPlayer blackPlayer, int _delayPerMoveInM
 
         var currentIserIsCheckedAfterMove = CurrentIserIsCheckedAfterMove(board, move);
 
-        return isValidOnBoard 
+        return isValidOnBoard
             && !currentIserIsCheckedAfterMove;
     }
 
