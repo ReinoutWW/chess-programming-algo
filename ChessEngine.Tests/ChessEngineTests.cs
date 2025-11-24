@@ -98,8 +98,8 @@ public class ChessEngineTests
     [InlineData(1, 44)]
     [InlineData(2, 1486)]
     [InlineData(3, 62379)]
-    [InlineData(4, 89941194)]
-    public void Perft_Position5ShouldReturnCorrectMoves(int depth, int expectedMoves)
+    [InlineData(4, 2103487)]
+    public void Perft_Position5ShouldReturnCorrectMoves(int depth, long expectedMoves)
     {
         const string fen = "rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8";
         var game = new Game(new DummyPlayer(PieceColor.White), new DummyPlayer(PieceColor.Black), 0, fen);
