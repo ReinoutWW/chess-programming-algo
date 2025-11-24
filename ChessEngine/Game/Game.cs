@@ -31,6 +31,8 @@ public class Game(IPlayer whitePlayer, IPlayer blackPlayer, int _delayPerMoveInM
     private readonly IPlayer blackPlayer = blackPlayer;
     private Board board = new Board();
 
+    private Move? _lastMove = null;
+
     public IPlayer GetCurrentPlayer() => _currentPlayer;
 
     private bool IsCheck(Board board, PieceColor currentColor) {
@@ -72,13 +74,17 @@ public class Game(IPlayer whitePlayer, IPlayer blackPlayer, int _delayPerMoveInM
         }
 
         Visualize();
-        
+
+        _lastMove = move;
+
         if(NextMoveHandler != null) {
             await NextMoveHandler();
         }
 
         await NextTurn();
     }
+
+    public Move? GetLastMove() => _lastMove;
 
     public Board GetBoard() => board;
 
@@ -181,12 +187,6 @@ public class Game(IPlayer whitePlayer, IPlayer blackPlayer, int _delayPerMoveInM
     private void ValidateIfInsufficientMaterial() {
         var whitePieces = board.GetPiecesForColor(PieceColor.White);
         var blackPieces = board.GetPiecesForColor(PieceColor.Black);
-
-        if(whitePieces.Count == 1 && blackPieces.Count == 1) {
-            Winner = null;
-            _gameEndReason = GameEndReason.InsufficientMaterial;
-            IsGameActive = false;
-        }
 
         if(whitePieces.HasInsufficientMaterial() && blackPieces.HasInsufficientMaterial()) {
             Winner = null;

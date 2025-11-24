@@ -6,6 +6,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ChessEngine", "ChessEngine\
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ChessConsole", "ChessConsole\ChessConsole.csproj", "{1A30C0E6-FF3E-433B-8B0B-CF3AD0EAE5D7}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ChessBlazor", "ChessBlazor\ChessBlazor.csproj", "{13E1E8A9-3A3E-444B-97FB-AAED53B94D4C}"
+EndProject
 Global
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -46,5 +48,17 @@ Global
 		{1A30C0E6-FF3E-433B-8B0B-CF3AD0EAE5D7}.Release|x64.Build.0 = Release|Any CPU
 		{1A30C0E6-FF3E-433B-8B0B-CF3AD0EAE5D7}.Release|x86.ActiveCfg = Release|Any CPU
 		{1A30C0E6-FF3E-433B-8B0B-CF3AD0EAE5D7}.Release|x86.Build.0 = Release|Any CPU
+		{13E1E8A9-3A3E-444B-97FB-AAED53B94D4C}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{13E1E8A9-3A3E-444B-97FB-AAED53B94D4C}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{13E1E8A9-3A3E-444B-97FB-AAED53B94D4C}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{13E1E8A9-3A3E-444B-97FB-AAED53B94D4C}.Debug|x64.Build.0 = Debug|Any CPU
+		{13E1E8A9-3A3E-444B-97FB-AAED53B94D4C}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{13E1E8A9-3A3E-444B-97FB-AAED53B94D4C}.Debug|x86.Build.0 = Debug|Any CPU
+		{13E1E8A9-3A3E-444B-97FB-AAED53B94D4C}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{13E1E8A9-3A3E-444B-97FB-AAED53B94D4C}.Release|Any CPU.Build.0 = Release|Any CPU
+		{13E1E8A9-3A3E-444B-97FB-AAED53B94D4C}.Release|x64.ActiveCfg = Release|Any CPU
+		{13E1E8A9-3A3E-444B-97FB-AAED53B94D4C}.Release|x64.Build.0 = Release|Any CPU
+		{13E1E8A9-3A3E-444B-97FB-AAED53B94D4C}.Release|x86.ActiveCfg = Release|Any CPU
+		{13E1E8A9-3A3E-444B-97FB-AAED53B94D4C}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

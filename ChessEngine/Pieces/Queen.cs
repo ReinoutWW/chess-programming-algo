@@ -47,4 +47,10 @@ public class Queen(PieceColor color) : Piece(color, PieceType.Queen) {
 
         return hasPieceBetween;
     }
+
+    public override Piece Clone() {
+        return new Queen(Color) {
+            HasMoved = HasMoved
+        };
+    }
 }

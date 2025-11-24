@@ -44,4 +44,10 @@ public class Bishop(PieceColor color) : Piece(color, PieceType.Bishop) {
 
         return hasPieceBetween;
     }
+
+    public override Piece Clone() {
+        return new Bishop(Color) {
+            HasMoved = HasMoved
+        };
+    }
 }

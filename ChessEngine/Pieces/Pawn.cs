@@ -62,4 +62,10 @@ public class Pawn(PieceColor color) : Piece(color, PieceType.Pawn) {
     private bool IsStarterPositionForColor(PieceColor color, int row) {
         return color == PieceColor.White ? row == 1 : row == 6;
     }
+
+    public override Piece Clone() {
+        return new Pawn(Color) {
+            HasMoved = HasMoved
+        };
+    }
 }

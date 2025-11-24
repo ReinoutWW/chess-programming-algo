@@ -18,4 +18,10 @@ public class Knight(PieceColor color) : Piece(color, PieceType.Knight) {
         return board.GetPieceAtPosition(move.To) != null 
             && board.GetPieceAtPosition(move.To)!.Color == Color;
     }
+
+    public override Piece Clone() {
+        return new Knight(Color) {
+            HasMoved = HasMoved
+        };
+    }
 }   

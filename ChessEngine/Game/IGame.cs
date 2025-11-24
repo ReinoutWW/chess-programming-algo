@@ -32,4 +32,6 @@ public interface IGame {
     IGame Clone(bool simulated = false);
 
     bool IsDraw();
+
+    Move? GetLastMove();
 }

@@ -15,16 +15,16 @@ using Chess.Programming.Ago.Pieces;
 /// </summary>
 public class MaterialMobilityFunction : IEvaluationFunction {
     public int Evaluate(IGame game, PieceColor color) {
-        var materialScore = MaterialScore(game, color);
-        var mobilityScore = MobilityScore(game, color);
+        var allCurrentColorPieces = game.GetBoard().GetPiecesForColor(color);
+        var allOtherColorPieces = game.GetBoard().GetPiecesForColor(color == PieceColor.White ? PieceColor.Black : PieceColor.White);
+
+        var materialScore = MaterialScore(allCurrentColorPieces, allOtherColorPieces);
+        var mobilityScore = MobilityScore(game, allCurrentColorPieces, allOtherColorPieces);
 
         return materialScore + mobilityScore;
     }
 
-    private static int MaterialScore(IGame game, PieceColor color) {
-        var allCurrentColorPieces = game.GetBoard().GetPiecesForColor(color);
-        var allOtherColorPieces = game.GetBoard().GetPiecesForColor(color == PieceColor.White ? PieceColor.Black : PieceColor.White);
-
+    private static int MaterialScore(List<(Piece, Position)> allCurrentColorPieces, List<(Piece, Position)> allOtherColorPieces) {
         var materialScore = 0;
 
         var kingScore = (allCurrentColorPieces.Count(piece => piece.Item1.Type == PieceType.King) - allOtherColorPieces.Count(piece => piece.Item1.Type == PieceType.King)) * 200;
@@ -45,12 +45,9 @@ public class MaterialMobilityFunction : IEvaluationFunction {
         return materialScore;   
     }
 
-    private static int MobilityScore(IGame game, PieceColor color) {
-        var allPiecesForCurrentColor = game.GetBoard().GetPiecesForColor(color);
-        var allPiecesForOtherColor = game.GetBoard().GetPiecesForColor(color == PieceColor.White ? PieceColor.Black : PieceColor.White);
-
-        var currentColorMobility = allPiecesForCurrentColor.Sum(piece => game.GetValidMovesForPosition(piece.Item2).Count);
-        var otherColorMobility = allPiecesForOtherColor.Sum(piece => game.GetValidMovesForPosition(piece.Item2).Count);
+    private static int MobilityScore(IGame game, List<(Piece, Position)> allCurrentColorPieces, List<(Piece, Position)> allOtherColorPieces) {
+        var currentColorMobility = allCurrentColorPieces.Sum(piece => game.GetValidMovesForPosition(piece.Item2).Count);
+        var otherColorMobility = allOtherColorPieces.Sum(piece => game.GetValidMovesForPosition(piece.Item2).Count);
 
         var mobilityScore = (int)Math.Round((currentColorMobility - otherColorMobility) * 0.1);
 

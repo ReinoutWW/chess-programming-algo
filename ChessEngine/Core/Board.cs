@@ -3,6 +3,7 @@ namespace Chess.Programming.Ago.Core;
 using Chess.Programming.Ago.Pieces;
 using Chess.Programming.Ago.Core.Exceptions;
 using System.ComponentModel;
+using System.Runtime.CompilerServices;
 
 public class Board {
     private readonly Piece[,] pieces = new Piece[8, 8];
@@ -41,12 +42,42 @@ public class Board {
     /// <exception cref="InvalidMoveException"></exception>
     public MoveResult ApplyMove(Move move) {
         var fromPiece = pieces[move.From.Row, move.From.Column];
-        var toPiece = pieces[move.To.Row, move.To.Column];
-        var moveResult = new MoveResult(false, null);
 
         if(fromPiece == null) {
             throw new InvalidMoveException("No piece at from position");
         }
+
+        if(IsCastlingMove(move, fromPiece.Color)) {
+            return ApplyCastlingMove(move);
+        } else {
+            return ApplyRegularMove(move);
+        }
+    }
+
+    private MoveResult ApplyCastlingMove(Move move) {
+        var fromPiece = pieces[move.From.Row, move.From.Column];
+        var moveResult = new MoveResult(false, null);
+
+        var isKingSideCastling = move.From.Column < move.To.Column;
+        var rookColumn = isKingSideCastling ? 7 : 0;
+        var rook = pieces[move.From.Row, rookColumn];
+    
+        pieces[move.To.Row, move.To.Column] = fromPiece;
+        pieces[move.From.Row, move.From.Column] = null;
+
+        pieces[move.From.Row, rookColumn] = null;
+        pieces[move.From.Row, isKingSideCastling ? 5 : 3] = rook;
+
+        fromPiece.HasMoved = true;
+        rook.HasMoved = true;
+
+        return moveResult;
+    }
+
+    private MoveResult ApplyRegularMove(Move move) {
+        var fromPiece = pieces[move.From.Row, move.From.Column];
+        var toPiece = pieces[move.To.Row, move.To.Column];
+        var moveResult = new MoveResult(false, null);
 
         if(toPiece != null) {
             capturedPieces.Add(toPiece);
@@ -145,12 +176,84 @@ public class Board {
 
         for(int i = 0; i < 8; i++) {
             for(int j = 0; j < 8; j++) {
-                clonedBoard.pieces[i, j] = pieces[i, j];
+
+                if(pieces[i, j] != null) {
+                    clonedBoard.pieces[i, j] = pieces[i, j].Clone();
+                }
+                else {
+                    clonedBoard.pieces[i, j] = null;
+                }
             }
         }
 
         clonedBoard.capturedPieces.AddRange(capturedPieces);
 
         return clonedBoard;
+    }
+
+    public bool IsCastlingMove(Move move, PieceColor color) {
+        var fromPiece = pieces[move.From.Row, move.From.Column];
+        var toPiece = pieces[move.To.Row, move.To.Column];
+
+        var isTwoSquaresAway = Math.Abs(move.From.Column - move.To.Column) == 2;
+
+        if(!isTwoSquaresAway) {
+            return false;
+        }
+
+        // Is there even a peice, and is it the correct color, and has it not moved yet?
+        if(fromPiece == null || toPiece != null || fromPiece.Color != color || fromPiece.HasMoved) {
+            return false;
+        }
+
+       // Rook check: Has the rook in the direction of the move been moved yet? 
+       // Warning: The rook can either be on A1 or H1, or mirrored
+       // Warning: keep both colors in mind
+       var rookRow = move.From.Row;
+       var isKingSideCastling = move.From.Column < move.To.Column;
+
+       var rookColumn = isKingSideCastling ? 7 : 0;
+       var rook = pieces[rookRow, rookColumn];
+
+       if(rook == null || rook.Color != color || rook.HasMoved) {
+            return false;
+       }
+
+       var squaresThatMayNotBeAttacked = isKingSideCastling ? new List<Position> {
+            new Position(move.From.Row, move.From.Column),
+            new Position(move.From.Row, move.From.Column + 1),
+            new Position(move.From.Row, move.From.Column + 2),
+        } : new List<Position> {
+            new Position(move.From.Row, move.From.Column),
+            new Position(move.From.Row, move.From.Column - 1),
+            new Position(move.From.Row, move.From.Column - 2),
+            new Position(move.From.Row, move.From.Column - 3),
+       };
+
+       foreach(var square in squaresThatMayNotBeAttacked) {
+            if(IsSquareUnderAttack(square, color)) {
+                return false;
+            } else if(!IsSquareEmpty(square) && square != move.From) {
+                return false;
+            }
+       }
+
+       return true;
+    }
+
+    private bool IsSquareEmpty(Position position) {
+        return GetPieceAtPosition(position) == null;
+    }
+
+    private bool IsSquareUnderAttack(Position position, PieceColor color) {
+        var pieces = GetPiecesForColor(color == PieceColor.White ? PieceColor.Black : PieceColor.White);
+
+        foreach(var piece in pieces) {
+            if(piece.Item1.IsValidMove(this, new Move(piece.Item2, position))) {
+                return true;
+            }
+        }
+
+        return false;
     }
 }

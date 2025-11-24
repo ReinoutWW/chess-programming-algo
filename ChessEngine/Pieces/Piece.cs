@@ -14,4 +14,6 @@ public abstract class Piece {
     }
 
     public abstract bool IsValidMove(Board board, Move move);
+
+    public abstract Piece Clone();
 }   

@@ -62,6 +62,8 @@
                         <div class="board-row-cell 
                                 @(selectedCellPosition == new Position(row, column) ? "board-row-cell-selected" : "") 
                                 @((row + column) % 2 == 0 ? "board-row-cell-even" : "board-row-cell-odd") 
+                                @(game.GetLastMove()?.From == position ? "board-row-cell-last-move-from" : "")
+                                @(game.GetLastMove()?.To == position ? "board-row-cell-last-move-to" : "")
                                 @(validMovesForselectedCellPosition.Contains(new Position(row, column)) ? "board-row-cell-valid-move" : "")"
                                 @onclick="() => HandleCellClick(position)">
                             @{
@@ -103,6 +105,11 @@
         align-items: center;
         padding: 1rem;
         margin-bottom: 1rem;
+    }
+
+    .board-row-cell-last-move-from,
+    .board-row-cell-last-move-to {
+        border: 3px dashed #8f5151bf !important
     }
 
     .btn {

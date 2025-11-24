@@ -43,4 +43,10 @@ public class Rook(PieceColor color) : Piece(color, PieceType.Rook) {
 
         return hasPieceBetween;
     }
+
+    public override Piece Clone() {
+        return new Rook(Color) {
+            HasMoved = HasMoved
+        };
+    }
 }
