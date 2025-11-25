@@ -62,7 +62,7 @@
                         var promotionMovesToThisSquare = validMovesForselectedCellPosition
                             .Where(move => move.To == position && move.PromotedTo != null)
                             .ToList();
-                        var hasPromotionOptions = promotionMovesToThisSquare.Count > 1;
+                        var hasPromotionOptions = promotionMovesToThisSquare.Count >= 1;
                         
                         <div class="board-row-cell 
                                 @(selectedCellPosition == new Position(row, column) ? "board-row-cell-selected" : "") 
@@ -554,7 +554,7 @@
                     .Where(m => m.To == toPosition && m.PromotedTo != null)
                     .ToList();
                 
-                if(promotionMoves.Count > 1) {
+                if(promotionMoves.Count >= 1) {
                     // Promotion options are displayed, wait for HandlePromotionClick
                     return;
                 }
@@ -636,7 +636,7 @@
                     .Where(m => m.To == dropPosition && m.PromotedTo != null)
                     .ToList();
                 
-                if(promotionMoves.Count > 1) {
+                if(promotionMoves.Count >= 1) {
                     // Show promotion options - keep selection active
                     selectedCellPosition = fromPosition;
                     validMovesForselectedCellPosition = validMoves;

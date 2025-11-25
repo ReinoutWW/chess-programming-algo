@@ -32,7 +32,7 @@ public class GreedyPlayer(PieceColor color) : IPlayer {
 
                     if(value > bestValue) {
                         bestValue = value;
-                        bestMove = new Move(piece.Item2, move.To);
+                        bestMove = new Move(piece.Item2, move.To, move.PromotedTo);
                     }
                 }
             }
