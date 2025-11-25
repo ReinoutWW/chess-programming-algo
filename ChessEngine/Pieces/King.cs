@@ -24,6 +24,11 @@ public class King(PieceColor color) : Piece(color, PieceType.King) {
             && Math.Abs(from.Column - to.Column) == 2;
     }
 
+    public override bool CanAttackSquare(Board board, Move move) {
+        // King attacks one square in any direction (excludes castling)
+        return IsOneSquareAway(move.From, move.To);
+    }
+
     public override Piece Clone() {
         return new King(Color) {
             HasMoved = HasMoved

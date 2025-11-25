@@ -112,6 +112,12 @@ public class Pawn(PieceColor color) : Piece(color, PieceType.Pawn) {
         return color == PieceColor.White ? row == 6 : row == 1;
     }
 
+    public override bool CanAttackSquare(Board board, Move move) {
+        // Pawns attack diagonally one square forward, regardless of whether a piece is there
+        return IsOneColumnAway(move.From, move.To) &&
+               move.From.Row + _direction == move.To.Row;
+    }
+
     public override Piece Clone() {
         return new Pawn(Color) {
             HasMoved = HasMoved

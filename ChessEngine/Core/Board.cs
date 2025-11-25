@@ -455,7 +455,7 @@ public class Board {
         var pieces = GetPiecesForColor(color == PieceColor.White ? PieceColor.Black : PieceColor.White);
 
         foreach(var piece in pieces) {
-            if(piece.Item1.IsValidMove(this, new Move(piece.Item2, position))) {
+            if(piece.Item1.CanAttackSquare(this, new Move(piece.Item2, position))) {
                 return true;
             }
         }
