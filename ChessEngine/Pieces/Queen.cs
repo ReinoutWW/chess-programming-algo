@@ -17,6 +17,11 @@ public class Queen(PieceColor color) : Piece(color, PieceType.Queen) {
             && !DestinationIsOccupiedByOwnPiece(board, move); 
     }
 
+    public override IEnumerable<Move> GetPossibleMoves(Board board, Position from) {
+        // Queen slides in all 8 directions (combines rook + bishop)
+        return GenerateSlidingMoves(board, from, AllDirections);
+    }
+
     private bool DestinationIsOccupiedByOwnPiece(Board board, Move move) {
         return board.GetPieceAtPosition(move.To) != null 
             && board.GetPieceAtPosition(move.To)!.Color == Color;

@@ -14,6 +14,11 @@ public class Rook(PieceColor color) : Piece(color, PieceType.Rook) {
             && !DestinationIsOccupiedByOwnPiece(board, move);
     }
 
+    public override IEnumerable<Move> GetPossibleMoves(Board board, Position from) {
+        // Rook slides orthogonally (horizontally/vertically)
+        return GenerateSlidingMoves(board, from, OrthogonalDirections);
+    }
+
     private bool DestinationIsOccupiedByOwnPiece(Board board, Move move) {
         return board.GetPieceAtPosition(move.To) != null 
             && board.GetPieceAtPosition(move.To)!.Color == Color;

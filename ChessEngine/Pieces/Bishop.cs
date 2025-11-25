@@ -14,6 +14,11 @@ public class Bishop(PieceColor color) : Piece(color, PieceType.Bishop) {
             && !DestinationIsOccupiedByOwnPiece(board, move);
     }
 
+    public override IEnumerable<Move> GetPossibleMoves(Board board, Position from) {
+        // Bishop slides diagonally - use the helper method from base class
+        return GenerateSlidingMoves(board, from, DiagonalDirections);
+    }
+
     private bool DestinationIsOccupiedByOwnPiece(Board board, Move move) {
         return board.GetPieceAtPosition(move.To) != null 
             && board.GetPieceAtPosition(move.To)!.Color == Color;

@@ -129,4 +129,19 @@ public class ChessEngineTests
         Assert.Equal(20, results.Count);
         Assert.Equal(20, total);
     }
+
+    [Fact]
+    public void MiniMax_ShouldFindMoveQuickly()
+    {
+        var minimax = new Chess.Programming.Ago.ChessEngines.MiniMaxPlayer(PieceColor.White, null, depth: 4);
+        var game = new Game(minimax, new DummyPlayer(PieceColor.Black));
+        
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
+        var move = minimax.GetMove(game).Result;
+        stopwatch.Stop();
+        
+        _output.WriteLine($"MiniMax depth 4 found move in {stopwatch.ElapsedMilliseconds}ms");
+        Assert.NotNull(move);
+        Assert.True(stopwatch.ElapsedMilliseconds < 10000, $"MiniMax took too long: {stopwatch.ElapsedMilliseconds}ms");
+    }
 }

@@ -184,31 +184,31 @@ public class Game : IGame {
         Visualizer?.Visualize(board);
     }
 
+    /// <summary>
+    /// Gets all legal moves for a piece at the given position.
+    /// Uses efficient direct move generation instead of brute-force testing all 64 squares.
+    /// </summary>
     public List<Move> GetValidMovesForPosition(Position position) {
         var piece = board.GetPieceAtPosition(position);
 
-        var validmoves = new List<Move>();
-        for(int i = 0; i < 8; i++) {
-            for(int j = 0; j < 8; j++) {
-                if(position == new Position(i, j)) {
-                    continue;
-                }
+        if (piece == null) {
+            return [];
+        }
 
-                if(IsPawnPromotionMove(new Move(position, new Position(i, j)))) {
-                    var promotionChoices = new List<PieceType> { PieceType.Queen, PieceType.Rook, PieceType.Bishop, PieceType.Knight };
-                    foreach(var promotionChoice in promotionChoices) {
-                        if(IsValidMove(new Move(position, new Position(i, j), promotionChoice))) {
-                            validmoves.Add(new Move(position, new Position(i, j), promotionChoice));
-                        }
-                    }
-                } else if(IsValidMove(new Move(position, new Position(i, j)))) {
-                    validmoves.Add(new Move(position, new Position(i, j)));
-                }
+        var validMoves = new List<Move>();
+        
+        // Use efficient move generation for the piece
+        foreach (var move in piece.GetPossibleMoves(board, position)) {
+            // Handle pawn promotion: the piece generates moves with PromotedTo already set
+            // Filter out moves that leave the king in check
+            if (!board.IsCurrentPlayerCheckedAfterMove(move, currentColor)) {
+                validMoves.Add(move);
             }
         }
 
-        return validmoves;
+        return validMoves;
     }
+    
 
     public IGame Clone(bool simulated = false) {
         var clonedBoard = board.Clone();

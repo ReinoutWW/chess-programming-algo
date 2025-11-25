@@ -1,12 +1,12 @@
 namespace Chess.Programming.Ago.Pieces;
 
-using System.Runtime.CompilerServices;
-using System.Security.Cryptography.X509Certificates;
 using Chess.Programming.Ago.Core;
 
 public class Pawn(PieceColor color) : Piece(color, PieceType.Pawn) {
 
     private readonly int _direction = color == PieceColor.White ? -1 : 1;
+    private readonly int _startRow = color == PieceColor.White ? 6 : 1;
+    private readonly int _promotionRow = color == PieceColor.White ? 0 : 7;
 
     public override bool IsValidMove(Board board, Move move) {
         bool isAllowedForwardMove = 
@@ -35,6 +35,81 @@ public class Pawn(PieceColor color) : Piece(color, PieceType.Pawn) {
             || isAllowedDiagonalCapture 
             || legalTwoSquareMove
             || IsAllowedEnPassant(move, board);
+    }
+
+    public override IEnumerable<Move> GetPossibleMoves(Board board, Position from) {
+        var moves = new List<Move>();
+        
+        // 1. Single square forward
+        int forwardRow = from.Row + _direction;
+        if (IsOnBoard(forwardRow, from.Column)) {
+            var forwardPos = new Position(forwardRow, from.Column);
+            if (IsEmptySquare(board, forwardPos)) {
+                AddMoveWithPromotionCheck(moves, from, forwardPos);
+
+                // 2. Double square forward from starting position
+                if (from.Row == _startRow) {
+                    int doubleRow = from.Row + (2 * _direction);
+                    var doublePos = new Position(doubleRow, from.Column);
+                    if (IsEmptySquare(board, doublePos)) {
+                        moves.Add(new Move(from, doublePos));
+                    }
+                }
+            }
+        }
+
+        // 3. Diagonal captures (left and right)
+        int[] captureColumns = [from.Column - 1, from.Column + 1];
+        foreach (int col in captureColumns) {
+            if (!IsOnBoard(forwardRow, col)) continue;
+            
+            var capturePos = new Position(forwardRow, col);
+            var targetPiece = board.GetPieceAtPosition(capturePos);
+            
+            if (targetPiece != null && targetPiece.Color != Color) {
+                AddMoveWithPromotionCheck(moves, from, capturePos);
+            }
+        }
+
+        // 4. En passant
+        var enPassantMove = GetEnPassantMove(board, from);
+        if (enPassantMove != null) {
+            moves.Add(enPassantMove);
+        }
+
+        return moves;
+    }
+
+    private void AddMoveWithPromotionCheck(List<Move> moves, Position from, Position to) {
+        if (to.Row == _promotionRow) {
+            // Add all promotion options
+            moves.Add(new Move(from, to, PieceType.Queen));
+            moves.Add(new Move(from, to, PieceType.Rook));
+            moves.Add(new Move(from, to, PieceType.Bishop));
+            moves.Add(new Move(from, to, PieceType.Knight));
+        } else {
+            moves.Add(new Move(from, to));
+        }
+    }
+
+    private Move? GetEnPassantMove(Board board, Position from) {
+        var lastMove = board.GetLastMove();
+        if (lastMove == null) return null;
+
+        // Last move must be a pawn double-move
+        var movedCells = Math.Abs(lastMove.From.Row - lastMove.To.Row);
+        if (movedCells != 2) return null;
+
+        var lastMovePiece = board.GetPieceAtPosition(lastMove.To);
+        if (lastMovePiece == null || lastMovePiece.Type != PieceType.Pawn) return null;
+
+        // Our pawn must be adjacent to the enemy pawn
+        if (from.Row != lastMove.To.Row) return null;
+        if (Math.Abs(from.Column - lastMove.To.Column) != 1) return null;
+
+        // The target square is behind the enemy pawn
+        var direction = lastMovePiece.Color == PieceColor.White ? 1 : -1;
+        return new Move(from, new Position(lastMove.To.Row + direction, lastMove.To.Column));
     }
 
     private bool IsAllowedEnPassant(Move move, Board board) {

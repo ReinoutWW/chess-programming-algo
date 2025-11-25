@@ -315,6 +315,174 @@ public class Board {
     }
 
     /// <summary>
+    /// Lightweight move application for search. Returns info needed to unmake the move.
+    /// Does NOT add to captured pieces list or validate - assumes move is already valid.
+    /// </summary>
+    public UndoInfo MakeMove(Move move) {
+        var fromPiece = pieces[move.From.Row, move.From.Column]!;
+        var previousLastMove = lastMove;
+        var movingPieceHadMoved = fromPiece.HasMoved;
+
+        // Detect special move types
+        bool isCastling = fromPiece.Type == PieceType.King && Math.Abs(move.From.Column - move.To.Column) == 2;
+        bool isEnPassant = fromPiece.Type == PieceType.Pawn && 
+                           move.From.Column != move.To.Column && 
+                           pieces[move.To.Row, move.To.Column] == null;
+        bool isPromotion = fromPiece.Type == PieceType.Pawn && (move.To.Row == 0 || move.To.Row == 7);
+
+        UndoInfo undoInfo;
+
+        if (isCastling) {
+            undoInfo = MakeMoveCastling(move, fromPiece, previousLastMove, movingPieceHadMoved);
+        } else if (isEnPassant) {
+            undoInfo = MakeMoveEnPassant(move, fromPiece, previousLastMove, movingPieceHadMoved);
+        } else if (isPromotion) {
+            undoInfo = MakeMovePromotion(move, fromPiece, previousLastMove, movingPieceHadMoved);
+        } else {
+            undoInfo = MakeMoveRegular(move, fromPiece, previousLastMove, movingPieceHadMoved);
+        }
+
+        lastMove = move;
+        return undoInfo;
+    }
+
+    private UndoInfo MakeMoveRegular(Move move, Piece fromPiece, Move? previousLastMove, bool movingPieceHadMoved) {
+        var capturedPiece = pieces[move.To.Row, move.To.Column];
+        
+        pieces[move.To.Row, move.To.Column] = fromPiece;
+        pieces[move.From.Row, move.From.Column] = null;
+        fromPiece.HasMoved = true;
+
+        return new UndoInfo {
+            Move = move,
+            CapturedPiece = capturedPiece,
+            CapturedPiecePosition = capturedPiece != null ? move.To : null,
+            PreviousLastMove = previousLastMove,
+            MovingPieceHadMoved = movingPieceHadMoved
+        };
+    }
+
+    private UndoInfo MakeMovePromotion(Move move, Piece fromPiece, Move? previousLastMove, bool movingPieceHadMoved) {
+        var capturedPiece = pieces[move.To.Row, move.To.Column];
+        var promotedPiece = CreatePromotedPiece(fromPiece.Color, move.PromotedTo ?? PieceType.Queen);
+        
+        pieces[move.To.Row, move.To.Column] = promotedPiece;
+        pieces[move.From.Row, move.From.Column] = null;
+
+        return new UndoInfo {
+            Move = move,
+            CapturedPiece = capturedPiece,
+            CapturedPiecePosition = capturedPiece != null ? move.To : null,
+            PreviousLastMove = previousLastMove,
+            MovingPieceHadMoved = movingPieceHadMoved,
+            OriginalMovingPiece = fromPiece  // Store original pawn to restore
+        };
+    }
+
+    private UndoInfo MakeMoveEnPassant(Move move, Piece fromPiece, Move? previousLastMove, bool movingPieceHadMoved) {
+        // The captured pawn is at the same column as the destination, but same row as the moving pawn
+        var capturedPawnPos = new Position(move.From.Row, move.To.Column);
+        var capturedPawn = pieces[capturedPawnPos.Row, capturedPawnPos.Column];
+        
+        pieces[move.To.Row, move.To.Column] = fromPiece;
+        pieces[move.From.Row, move.From.Column] = null;
+        pieces[capturedPawnPos.Row, capturedPawnPos.Column] = null;
+        fromPiece.HasMoved = true;
+
+        return new UndoInfo {
+            Move = move,
+            CapturedPiece = capturedPawn,
+            CapturedPiecePosition = capturedPawnPos,  // Different from move.To!
+            PreviousLastMove = previousLastMove,
+            MovingPieceHadMoved = movingPieceHadMoved
+        };
+    }
+
+    private UndoInfo MakeMoveCastling(Move move, Piece king, Move? previousLastMove, bool kingHadMoved) {
+        bool isKingSide = move.To.Column > move.From.Column;
+        int rookFromCol = isKingSide ? 7 : 0;
+        int rookToCol = isKingSide ? 5 : 3;
+        var rook = pieces[move.From.Row, rookFromCol]!;
+        bool rookHadMoved = rook.HasMoved;
+
+        // Move king
+        pieces[move.To.Row, move.To.Column] = king;
+        pieces[move.From.Row, move.From.Column] = null;
+        king.HasMoved = true;
+
+        // Move rook
+        pieces[move.From.Row, rookToCol] = rook;
+        pieces[move.From.Row, rookFromCol] = null;
+        rook.HasMoved = true;
+
+        return new UndoInfo {
+            Move = move,
+            PreviousLastMove = previousLastMove,
+            MovingPieceHadMoved = kingHadMoved,
+            WasCastling = true,
+            RookFrom = new Position(move.From.Row, rookFromCol),
+            RookTo = new Position(move.From.Row, rookToCol),
+            RookHadMoved = rookHadMoved
+        };
+    }
+
+    /// <summary>
+    /// Reverses a move using the stored undo information.
+    /// </summary>
+    public void UnmakeMove(UndoInfo undo) {
+        lastMove = undo.PreviousLastMove;
+
+        if (undo.WasCastling) {
+            UnmakeMoveCastling(undo);
+        } else if (undo.OriginalMovingPiece != null) {
+            UnmakeMovePromotion(undo);
+        } else {
+            UnmakeMoveRegular(undo);
+        }
+    }
+
+    private void UnmakeMoveRegular(UndoInfo undo) {
+        var movedPiece = pieces[undo.Move.To.Row, undo.Move.To.Column]!;
+        
+        // Move piece back
+        pieces[undo.Move.From.Row, undo.Move.From.Column] = movedPiece;
+        pieces[undo.Move.To.Row, undo.Move.To.Column] = null;
+        movedPiece.HasMoved = undo.MovingPieceHadMoved;
+
+        // Restore captured piece (might be at a different position for en passant)
+        if (undo.CapturedPiece != null && undo.CapturedPiecePosition != null) {
+            pieces[undo.CapturedPiecePosition.Row, undo.CapturedPiecePosition.Column] = undo.CapturedPiece;
+        }
+    }
+
+    private void UnmakeMovePromotion(UndoInfo undo) {
+        // Remove promoted piece, restore original pawn
+        pieces[undo.Move.From.Row, undo.Move.From.Column] = undo.OriginalMovingPiece;
+        pieces[undo.Move.To.Row, undo.Move.To.Column] = null;
+        undo.OriginalMovingPiece!.HasMoved = undo.MovingPieceHadMoved;
+
+        // Restore captured piece if any
+        if (undo.CapturedPiece != null && undo.CapturedPiecePosition != null) {
+            pieces[undo.CapturedPiecePosition.Row, undo.CapturedPiecePosition.Column] = undo.CapturedPiece;
+        }
+    }
+
+    private void UnmakeMoveCastling(UndoInfo undo) {
+        var king = pieces[undo.Move.To.Row, undo.Move.To.Column]!;
+        var rook = pieces[undo.RookTo!.Row, undo.RookTo.Column]!;
+
+        // Move king back
+        pieces[undo.Move.From.Row, undo.Move.From.Column] = king;
+        pieces[undo.Move.To.Row, undo.Move.To.Column] = null;
+        king.HasMoved = undo.MovingPieceHadMoved;
+
+        // Move rook back
+        pieces[undo.RookFrom!.Row, undo.RookFrom.Column] = rook;
+        pieces[undo.RookTo.Row, undo.RookTo.Column] = null;
+        rook.HasMoved = undo.RookHadMoved;
+    }
+
+    /// <summary>
     /// Check if this is valid:
     /// 1. Is the piece empty?
     /// 2. Is the piece the color of the current player?
