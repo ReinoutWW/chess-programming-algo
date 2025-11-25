@@ -1,3 +1,6 @@
 C:\Users\Reinout Wijnholds\Documents\Projects\HAN-ADP\chess-programming-algo\obj\Debug\net9.0\chess-programming-algo.GeneratedMSBuildEditorConfig.editorconfig
 C:\Users\Reinout Wijnholds\Documents\Projects\HAN-ADP\chess-programming-algo\obj\Debug\net9.0\chess-programming-algo.csproj.CoreCompileInputs.cache
 C:\Users\Reinout Wijnholds\Documents\Projects\HAN-ADP\chess-programming-algo\obj\Debug\net9.0\chess-programming-algo.sourcelink.json
+C:\Workspace\2. Dev\1. GitHub\chess-programming-algo\obj\Debug\net9.0\chess-programming-algo.GeneratedMSBuildEditorConfig.editorconfig
+C:\Workspace\2. Dev\1. GitHub\chess-programming-algo\obj\Debug\net9.0\chess-programming-algo.csproj.CoreCompileInputs.cache
+C:\Workspace\2. Dev\1. GitHub\chess-programming-algo\obj\Debug\net9.0\chess-programming-algo.sourcelink.json

@@ -70,9 +70,12 @@
                                 @(game.GetLastMove()?.From == position ? "board-row-cell-last-move-from" : "")
                                 @(game.GetLastMove()?.To == position ? "board-row-cell-last-move-to" : "")
                                 @(validMovesForselectedCellPosition.Any(move => move.To == new Position(row, column)) ? "board-row-cell-valid-move" : "")"
-                                @onclick="() => HandleCellClick(position)">
+                                @onclick="() => HandleCellClick(position)"
+                                ondragover="event.preventDefault();"
+                                @ondrop="() => HandleDrop(position)">
                             @{
                                 var piece = board.GetPieceAtPosition(position);
+                                var isDraggable = piece != null && piece.Color == game.GetCurrentPlayer().Color && isGameStarted && !game.GetCurrentPlayer().IsAI() && !game.IsFinished();
                                 if(hasPromotionOptions) {
                                     <div class="promotion-options">
                                         @foreach(var promoMove in promotionMovesToThisSquare) {
@@ -87,7 +90,10 @@
                                         }
                                     </div>
                                 } else if(piece != null) {
-                                    <div class="board-piece @(@piece.Type.ToString().ToLower())-@(@piece.Color.ToString().ToLower())">
+                                    <div class="board-piece @(@piece.Type.ToString().ToLower())-@(@piece.Color.ToString().ToLower()) @(isDraggable ? "draggable-piece" : "")"
+                                         draggable="@isDraggable.ToString().ToLower()"
+                                         @ondragstart="() => HandleDragStart(position)"
+                                         @ondragend="HandleDragEnd">
                                     </div>
                                 } else {
                                     <span class="board-empty-text">
@@ -459,11 +465,24 @@
         background-color: rgba(255, 215, 0, 0.3);
         z-index: 10;
     }
+
+    .draggable-piece {
+        cursor: grab;
+    }
+
+    .draggable-piece:active {
+        cursor: grabbing;
+    }
+
+    .board-row-cell {
+        transition: background-color 0.15s ease;
+    }
 </style>
 
 @code {
     private Position? selectedCellPosition = null;
     private List<Move> validMovesForselectedCellPosition = new List<Move>();
+    private Position? draggedPiecePosition = null;
 
     [Parameter]
     public IPlayer WhitePlayer { get; set; } = new HumanBlazorPlayer(PieceColor.White);
@@ -499,7 +518,7 @@
         await game.Start();
     }
 
-    private void HandleCellClick(Position clickedPosition) {
+    private async Task HandleCellClick(Position clickedPosition) {
         if(!isGameStarted || game.GetCurrentPlayer().IsAI() || game.IsFinished()) {
             return;
         }
@@ -509,7 +528,13 @@
         } else if(selectedCellPosition == clickedPosition) {
             UnsetSelectedCell();
         } else {
-            MakeMove(clickedPosition);
+            // Check if clicking on a friendly piece - switch selection instead of moving
+            var clickedPiece = board.GetPieceAtPosition(clickedPosition);
+            if(clickedPiece != null && clickedPiece.Color == game.GetCurrentPlayer().Color) {
+                SetSelectedCell(clickedPosition);
+            } else {
+                await MakeMove(clickedPosition);
+            }
         }
         
         StateHasChanged();
@@ -518,14 +543,14 @@
     private async Task MakeMove(Position toPosition) {
         var fromPosition = selectedCellPosition;
 
-        validMovesForselectedCellPosition = game.GetValidMovesForPosition(fromPosition);
+        var currentValidMoves = game.GetValidMovesForPosition(fromPosition);
         
-        if(validMovesForselectedCellPosition.Any(move => move.To == toPosition)) {
+        if(currentValidMoves.Any(move => move.To == toPosition)) {
             var move = new Move(fromPosition, toPosition);
             if(game.IsPawnPromotionMove(move)) {
                 // Don't auto-promote - wait for user to click promotion option
                 // If they click the square without promotion options showing, default to Queen
-                var promotionMoves = validMovesForselectedCellPosition
+                var promotionMoves = currentValidMoves
                     .Where(m => m.To == toPosition && m.PromotedTo != null)
                     .ToList();
                 
@@ -536,16 +561,21 @@
                 
                 move.PromotedTo = PieceType.Queen;
             } 
-                
-            await game.DoMove(move);
+            
+            // Clear selection BEFORE making the move to prevent highlighting during AI turn
             UnsetSelectedCell();
+            StateHasChanged();
+            
+            await game.DoMove(move);
         } 
     }
 
     private async Task HandlePromotionClick(Move promotionMove) {
-        await game.DoMove(promotionMove);
+        // Clear selection BEFORE making the move to prevent highlighting during AI turn
         UnsetSelectedCell();
         StateHasChanged();
+        
+        await game.DoMove(promotionMove);
     }
 
     private void UnsetSelectedCell() {
@@ -566,5 +596,65 @@
 
         selectedCellPosition = position;
         validMovesForselectedCellPosition = game.GetValidMovesForPosition(position);
+    }
+
+    private void HandleDragStart(Position position) {
+        if(!isGameStarted || game.GetCurrentPlayer().IsAI() || game.IsFinished()) {
+            return;
+        }
+
+        var piece = board.GetPieceAtPosition(position);
+        if(piece == null || piece.Color != game.GetCurrentPlayer().Color) {
+            return;
+        }
+
+        draggedPiecePosition = position;
+        SetSelectedCell(position);
+        StateHasChanged();
+    }
+
+    private void HandleDragEnd() {
+        draggedPiecePosition = null;
+    }
+
+    private async Task HandleDrop(Position dropPosition) {
+        if(draggedPiecePosition == null) {
+            return;
+        }
+
+        var fromPosition = draggedPiecePosition;
+        draggedPiecePosition = null;
+
+        // Check if this is a valid move
+        var validMoves = game.GetValidMovesForPosition(fromPosition);
+        
+        if(validMoves.Any(move => move.To == dropPosition)) {
+            var move = new Move(fromPosition, dropPosition);
+            
+            if(game.IsPawnPromotionMove(move)) {
+                var promotionMoves = validMoves
+                    .Where(m => m.To == dropPosition && m.PromotedTo != null)
+                    .ToList();
+                
+                if(promotionMoves.Count > 1) {
+                    // Show promotion options - keep selection active
+                    selectedCellPosition = fromPosition;
+                    validMovesForselectedCellPosition = validMoves;
+                    StateHasChanged();
+                    return;
+                }
+                
+                move.PromotedTo = PieceType.Queen;
+            }
+            
+            // Clear selection BEFORE making the move
+            UnsetSelectedCell();
+            StateHasChanged();
+            
+            await game.DoMove(move);
+        } else {
+            UnsetSelectedCell();
+            StateHasChanged();
+        }
     }
 }
