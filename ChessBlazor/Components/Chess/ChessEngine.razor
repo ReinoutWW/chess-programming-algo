@@ -44,7 +44,7 @@
                 </label>
                 <label class="setting-item">
                     <span>Search Depth:</span>
-                    <input type="number" min="1" max="4" @bind="searchDepth" @bind:after="UpdateSearchDepthSetting" />
+                    <input type="number" min="1" max="5" @bind="searchDepth" @bind:after="UpdateSearchDepthSetting" />
                 </label>
             </div>
         }
@@ -72,59 +72,89 @@
                     <div class="badge badge-black @(game.GetCurrentPlayer().Color == PieceColor.Black ? "badge-is-turn" : "")">Black</div>
                     <div class="badge badge-algorithm">@BlackPlayer.GetType().Name</div>
                 </div>
-                <div class="board-body">
-                    @for(int i = 0; i < 8; i++) {
-                        <div class="board-column">
-                            @for(int j = 0; j < 8; j++) {
-                                var row = i;
-                                var column = j;
-                                var position = new Position(row, column);
-                                var promotionMovesToThisSquare = validMovesForselectedCellPosition
-                                    .Where(move => move.To == position && move.PromotedTo != null)
-                                    .ToList();
-                                var hasPromotionOptions = promotionMovesToThisSquare.Count >= 1;
-                                
-                                <div class="board-row-cell 
-                                        @(selectedCellPosition == new Position(row, column) ? "board-row-cell-selected" : "") 
-                                        @((row + column) % 2 == 0 ? "board-row-cell-even" : "board-row-cell-odd") 
-                                        @(game.GetLastMove()?.From == position ? "board-row-cell-last-move-from" : "")
-                                        @(game.GetLastMove()?.To == position ? "board-row-cell-last-move-to" : "")
-                                        @(validMovesForselectedCellPosition.Any(move => move.To == new Position(row, column)) ? "board-row-cell-valid-move" : "")"
-                                        @onclick="() => HandleCellClick(position)"
-                                        ondragover="event.preventDefault();"
-                                        @ondrop="() => HandleDrop(position)">
-                                    @{
-                                        var piece = board.GetPieceAtPosition(position);
-                                        var isDraggable = piece != null && piece.Color == game.GetCurrentPlayer().Color && isGameStarted && !game.GetCurrentPlayer().IsAI() && !game.IsFinished();
-                                        if(hasPromotionOptions) {
-                                            <div class="promotion-options">
-                                                @foreach(var promoMove in promotionMovesToThisSquare) {
-                                                    if(promoMove.PromotedTo.HasValue) {
-                                                        var pieceType = promoMove.PromotedTo.Value;
-                                                        var pieceColor = game.GetCurrentPlayer().Color;
-                                                        <div class="promotion-option @(@pieceType.ToString().ToLower())-@(@pieceColor.ToString().ToLower())"
-                                                             @onclick="() => HandlePromotionClick(promoMove)"
-                                                             @onclick:stopPropagation="true">
-                                                        </div>
+                <div class="board-with-coordinates">
+                    @* Rank numbers on the left *@
+                    <div class="board-ranks">
+                        @for(int rank = 8; rank >= 1; rank--) {
+                            <div class="board-coordinate">@rank</div>
+                        }
+                    </div>
+                    
+                    <div class="board-body">
+                        @for(int i = 0; i < 8; i++) {
+                            <div class="board-column">
+                                @for(int j = 0; j < 8; j++) {
+                                    var row = i;
+                                    var column = j;
+                                    var position = new Position(row, column);
+                                    var promotionMovesToThisSquare = validMovesForselectedCellPosition
+                                        .Where(move => move.To == position && move.PromotedTo != null)
+                                        .ToList();
+                                    var hasPromotionOptions = promotionMovesToThisSquare.Count >= 1;
+                                    var isHintFrom = currentHint?.SuggestedMove?.From == position;
+                                    var isHintTo = currentHint?.SuggestedMove?.To == position;
+                                    
+                                    <div class="board-row-cell 
+                                            @(selectedCellPosition == new Position(row, column) ? "board-row-cell-selected" : "") 
+                                            @((row + column) % 2 == 0 ? "board-row-cell-even" : "board-row-cell-odd") 
+                                            @(game.GetLastMove()?.From == position ? "board-row-cell-last-move-from" : "")
+                                            @(game.GetLastMove()?.To == position ? "board-row-cell-last-move-to" : "")
+                                            @(validMovesForselectedCellPosition.Any(move => move.To == new Position(row, column)) ? "board-row-cell-valid-move" : "")
+                                            @(isHintFrom ? "board-row-cell-hint-from" : "")
+                                            @(isHintTo ? "board-row-cell-hint-to" : "")"
+                                            @onclick="() => HandleCellClick(position)"
+                                            ondragover="event.preventDefault();"
+                                            @ondrop="() => HandleDrop(position)">
+                                        @{
+                                            var piece = board.GetPieceAtPosition(position);
+                                            var isDraggable = piece != null && piece.Color == game.GetCurrentPlayer().Color && isGameStarted && !game.GetCurrentPlayer().IsAI() && !game.IsFinished();
+                                            if(hasPromotionOptions) {
+                                                <div class="promotion-options">
+                                                    @foreach(var promoMove in promotionMovesToThisSquare) {
+                                                        if(promoMove.PromotedTo.HasValue) {
+                                                            var pieceType = promoMove.PromotedTo.Value;
+                                                            var pieceColor = game.GetCurrentPlayer().Color;
+                                                            <div class="promotion-option @(@pieceType.ToString().ToLower())-@(@pieceColor.ToString().ToLower())"
+                                                                 @onclick="() => HandlePromotionClick(promoMove)"
+                                                                 @onclick:stopPropagation="true">
+                                                            </div>
+                                                        }
                                                     }
-                                                }
-                                            </div>
-                                        } else if(piece != null) {
-                                            <div class="board-piece @(@piece.Type.ToString().ToLower())-@(@piece.Color.ToString().ToLower()) @(isDraggable ? "draggable-piece" : "")"
-                                                 draggable="@isDraggable.ToString().ToLower()"
-                                                 @ondragstart="() => HandleDragStart(position)"
-                                                 @ondragend="HandleDragEnd">
-                                            </div>
-                                        } else {
-                                            <span class="board-empty-text">
-                                            </span>
+                                                </div>
+                                            } else if(piece != null) {
+                                                <div class="board-piece @(@piece.Type.ToString().ToLower())-@(@piece.Color.ToString().ToLower()) @(isDraggable ? "draggable-piece" : "")"
+                                                     draggable="@isDraggable.ToString().ToLower()"
+                                                     @ondragstart="() => HandleDragStart(position)"
+                                                     @ondragend="HandleDragEnd">
+                                                </div>
+                                            } else {
+                                                <span class="board-empty-text">
+                                                </span>
+                                            }
                                         }
-                                    }
-                                </div>
-                            }
-                        </div>
-                    }
+                                    </div>
+                                }
+                            </div>
+                        }
+                    </div>
+                    
+                    @* Rank numbers on the right *@
+                    <div class="board-ranks">
+                        @for(int rank = 8; rank >= 1; rank--) {
+                            <div class="board-coordinate">@rank</div>
+                        }
+                    </div>
                 </div>
+                
+                @* File letters at the bottom *@
+                <div class="board-files">
+                    <div class="board-files-spacer"></div>
+                    @foreach(var file in new[] { 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h' }) {
+                        <div class="board-coordinate">@file</div>
+                    }
+                    <div class="board-files-spacer"></div>
+                </div>
+                
                 <div class="board-footer">
                     <div class="badge badge-white @(game.GetCurrentPlayer().Color == PieceColor.White ? "badge-is-turn" : "")">White</div>
                     <div class="badge badge-algorithm">@WhitePlayer.GetType().Name</div>
@@ -140,11 +170,78 @@
                 </div>
             </div>
         </div>
+
+        @* Hint System - Fixed bottom panel *@
+        @if (isGameStarted && !game.IsFinished() && !game.GetCurrentPlayer().IsAI()) {
+            <div class="hint-panel">
+                <div class="hint-inner">
+                    <div class="hint-header">
+                        <span class="hint-title">AI Assistant</span>
+                        <div class="hint-depth-control">
+                            <span class="hint-depth-label">Depth</span>
+                            <input type="number" min="1" max="5" @bind="hintSearchDepth" @bind:after="UpdateHintDepth" disabled="@isCalculatingHint" class="hint-depth-input" />
+                        </div>
+                    </div>
+                    
+                    <div class="hint-body">
+                        @if (currentHint != null) {
+                            <div class="hint-result">
+                                <div class="hint-move-display">
+                                    <span class="hint-move-text">@currentHint.MoveDescription</span>
+                                    <span class="hint-score @(currentHint.Score > 0 ? "positive" : currentHint.Score < 0 ? "negative" : "neutral")">
+                                        @(currentHint.Score > 0 ? "+" : "")@currentHint.Score
+                                    </span>
+                                </div>
+                                @if (currentHint.SearchResult != null) {
+                                    <div class="hint-meta">
+                                        <span>@currentHint.SearchResult.TotalNodesEvaluated nodes</span>
+                                        <span class="hint-meta-dot">•</span>
+                                        <span>@currentHint.SearchResult.NodesPruned pruned</span>
+                                    </div>
+                                }
+                            </div>
+                        } else if (!isCalculatingHint) {
+                            <div class="hint-placeholder">
+                                <span>Request a hint to see the best move</span>
+                            </div>
+                        }
+                    </div>
+                    
+                    <div class="hint-actions">
+                        @if (isCalculatingHint) {
+                            <button class="hint-btn hint-btn-primary" disabled>
+                                <span class="hint-btn-spinner"></span>
+                                Analyzing...
+                            </button>
+                        } else {
+                            <button class="hint-btn hint-btn-primary" @onclick="RequestHint">
+                                Get Hint
+                            </button>
+                        }
+                        
+                        @if (currentHint != null) {
+                            <button class="hint-btn hint-btn-secondary" @onclick="ClearHint">
+                                Clear
+                            </button>
+                            @if (currentHint.SearchResult != null) {
+                                <button class="hint-btn hint-btn-ghost" @onclick="ShowHintVisualization">
+                                    View Tree
+                                </button>
+                            }
+                        }
+                    </div>
+                </div>
+            </div>
+        }
     </div>
 </div>
 
 @if (showVisualization) {
     <MiniMaxTreeVisualization SearchResult="@lastSearchResult" OnClose="CloseVisualization" />
+}
+
+@if (showHintVisualization && currentHint?.SearchResult != null) {
+    <MiniMaxTreeVisualization SearchResult="@currentHint.SearchResult" OnClose="CloseHintVisualization" />
 }
 
 <style>
@@ -205,6 +302,70 @@
         border: 3px dashed #8f5151bf !important
     }
 
+    /* Hint highlighting */
+    .board-row-cell-hint-from {
+        box-shadow: inset 0 0 0 4px #007aff !important;
+        background: linear-gradient(135deg, rgba(0, 122, 255, 0.15), rgba(0, 122, 255, 0.25)) !important;
+    }
+
+    .board-row-cell-hint-to {
+        box-shadow: inset 0 0 0 4px #34c759 !important;
+        background: linear-gradient(135deg, rgba(52, 199, 89, 0.15), rgba(52, 199, 89, 0.25)) !important;
+        animation: hint-pulse 1.5s ease-in-out infinite;
+    }
+
+    @@keyframes hint-pulse {
+        0%, 100% { opacity: 1; }
+        50% { opacity: 0.7; }
+    }
+
+    /* Board coordinates */
+    .board-with-coordinates {
+        display: flex;
+        align-items: stretch;
+        justify-content: center;
+    }
+
+    .board-ranks {
+        display: flex;
+        flex-direction: column;
+        justify-content: stretch;
+    }
+
+    .board-ranks .board-coordinate {
+        flex: 1;
+        width: 1.5rem;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .board-files {
+        display: flex;
+        justify-content: center;
+        padding: 0.25rem 0;
+    }
+
+    .board-files-spacer {
+        width: 1.5rem;
+    }
+
+    .board-files .board-coordinate {
+        width: 100px;
+        height: 1.5rem;
+    }
+
+    .board-coordinate {
+        font-size: 0.8rem;
+        font-weight: 600;
+        color: #86868b;
+        text-transform: lowercase;
+        font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
     .btn {
         padding: 0.75rem 2rem;
         font-size: 1.125rem;
@@ -237,6 +398,206 @@
     .btn-visualization:hover {
         background-color: #0056b3;
         transform: scale(1.02);
+    }
+
+    /* Hint System - Apple/Tesla Minimalist Design */
+    .hint-panel {
+        margin-top: 2rem;
+        padding: 0 1rem;
+    }
+
+    .hint-inner {
+        background: #ffffff;
+        border-radius: 16px;
+        padding: 1.25rem 1.5rem;
+        max-width: 480px;
+        margin: 0 auto;
+        box-shadow: 0 2px 20px rgba(0, 0, 0, 0.08);
+        border: 1px solid rgba(0, 0, 0, 0.06);
+    }
+
+    .hint-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 1rem;
+        padding-bottom: 0.75rem;
+        border-bottom: 1px solid #f0f0f0;
+    }
+
+    .hint-title {
+        font-size: 0.75rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: #86868b;
+    }
+
+    .hint-depth-control {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+    }
+
+    .hint-depth-label {
+        font-size: 0.75rem;
+        color: #86868b;
+        font-weight: 500;
+    }
+
+    .hint-depth-input {
+        width: 48px;
+        padding: 0.35rem 0.5rem;
+        border: 1px solid #e5e5e5;
+        border-radius: 8px;
+        font-size: 0.875rem;
+        text-align: center;
+        background: #fafafa;
+        transition: all 0.2s ease;
+    }
+
+    .hint-depth-input:focus {
+        outline: none;
+        border-color: #007aff;
+        background: #fff;
+    }
+
+    .hint-depth-input:disabled {
+        opacity: 0.5;
+    }
+
+    .hint-body {
+        min-height: 60px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .hint-placeholder {
+        color: #86868b;
+        font-size: 0.875rem;
+        text-align: center;
+    }
+
+    .hint-result {
+        width: 100%;
+        text-align: center;
+    }
+
+    .hint-move-display {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 1rem;
+        margin-bottom: 0.5rem;
+    }
+
+    .hint-move-text {
+        font-size: 1.5rem;
+        font-weight: 600;
+        color: #1d1d1f;
+        font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif;
+        letter-spacing: -0.02em;
+    }
+
+    .hint-score {
+        font-size: 1rem;
+        font-weight: 600;
+        padding: 0.25rem 0.75rem;
+        border-radius: 20px;
+        font-family: -apple-system, BlinkMacSystemFont, 'SF Mono', monospace;
+    }
+
+    .hint-score.positive {
+        background: #e8f5e9;
+        color: #2e7d32;
+    }
+
+    .hint-score.negative {
+        background: #ffebee;
+        color: #c62828;
+    }
+
+    .hint-score.neutral {
+        background: #f5f5f5;
+        color: #666;
+    }
+
+    .hint-meta {
+        font-size: 0.75rem;
+        color: #86868b;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+    }
+
+    .hint-meta-dot {
+        opacity: 0.5;
+    }
+
+    .hint-actions {
+        display: flex;
+        justify-content: center;
+        gap: 0.75rem;
+        margin-top: 1rem;
+        padding-top: 1rem;
+        border-top: 1px solid #f0f0f0;
+    }
+
+    .hint-btn {
+        padding: 0.625rem 1.25rem;
+        font-size: 0.875rem;
+        font-weight: 500;
+        border: none;
+        border-radius: 10px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', sans-serif;
+    }
+
+    .hint-btn-primary {
+        background: #007aff;
+        color: white;
+    }
+
+    .hint-btn-primary:hover:not(:disabled) {
+        background: #0056b3;
+    }
+
+    .hint-btn-primary:disabled {
+        background: #b0d4ff;
+        cursor: not-allowed;
+    }
+
+    .hint-btn-secondary {
+        background: #f5f5f7;
+        color: #1d1d1f;
+    }
+
+    .hint-btn-secondary:hover {
+        background: #e8e8ed;
+    }
+
+    .hint-btn-ghost {
+        background: transparent;
+        color: #007aff;
+    }
+
+    .hint-btn-ghost:hover {
+        background: rgba(0, 122, 255, 0.1);
+    }
+
+    .hint-btn-spinner {
+        width: 14px;
+        height: 14px;
+        border: 2px solid rgba(255, 255, 255, 0.3);
+        border-top: 2px solid white;
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
     }
 
     .game-status {
@@ -412,7 +773,6 @@
         width: 100%;
         height: 100%;
         padding: 1rem;
-        box-shadow: 0 0 10px 0 rgba(0, 0, 0, 0.1);
     }
 
     .board-header {
@@ -571,6 +931,13 @@
     private bool alphaBetaEnabled = true;
     private int searchDepth = 3;
 
+    // Hint system state
+    private HintService hintService = new HintService();
+    private HintResult? currentHint = null;
+    private bool isCalculatingHint = false;
+    private bool showHintVisualization = false;
+    private int hintSearchDepth = 3;
+
     [Parameter]
     public IPlayer WhitePlayer { get; set; } = new HumanBlazorPlayer(PieceColor.White);
     
@@ -587,6 +954,13 @@
     private bool HasVisualizablePlayer => 
         WhitePlayer is IVisualizablePlayer || BlackPlayer is IVisualizablePlayer;
 
+    // Check if current player is human (can receive hints)
+    private bool CanRequestHint => 
+        isGameStarted && 
+        !game.IsFinished() && 
+        !game.GetCurrentPlayer().IsAI() &&
+        !isCalculatingHint;
+
     private IVisualizablePlayer? GetVisualizablePlayer() {
         if (WhitePlayer is IVisualizablePlayer vp) return vp;
         if (BlackPlayer is IVisualizablePlayer vp2) return vp2;
@@ -602,12 +976,20 @@
             alphaBetaEnabled = visualizablePlayer.AlphaBetaPruningEnabled;
             searchDepth = visualizablePlayer.SearchDepth;
         }
+        
+        // Initialize hint service settings
+        hintService.SearchDepth = hintSearchDepth;
+        hintService.AlphaBetaPruningEnabled = true;
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender) {
         if(firstRender) {
             game.NextMoveHandler = async () => {
                 board = game.GetBoard();
+                
+                // Clear any active hint when a move is made
+                currentHint = null;
+                hintService.ClearHint();
                 
                 // Capture search result after AI move
                 var visualizablePlayer = GetVisualizablePlayer();
@@ -630,6 +1012,44 @@
     private void CloseVisualization() {
         showVisualization = false;
         StateHasChanged();
+    }
+
+    // Hint system methods
+    private async Task RequestHint() {
+        if (!CanRequestHint) return;
+        
+        isCalculatingHint = true;
+        StateHasChanged();
+        
+        try {
+            hintService.SearchDepth = hintSearchDepth;
+            currentHint = await hintService.GetHint(game);
+        } finally {
+            isCalculatingHint = false;
+            StateHasChanged();
+        }
+    }
+
+    private void ClearHint() {
+        currentHint = null;
+        hintService.ClearHint();
+        StateHasChanged();
+    }
+
+    private void ShowHintVisualization() {
+        if (currentHint?.SearchResult != null) {
+            showHintVisualization = true;
+            StateHasChanged();
+        }
+    }
+
+    private void CloseHintVisualization() {
+        showHintVisualization = false;
+        StateHasChanged();
+    }
+
+    private void UpdateHintDepth() {
+        hintService.SearchDepth = Math.Clamp(hintSearchDepth, 1, 5);
     }
 
     private void UpdateAlphaBetaSetting() {
