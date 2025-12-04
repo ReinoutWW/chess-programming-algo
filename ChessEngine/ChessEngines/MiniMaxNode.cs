@@ -86,12 +86,29 @@ public class MiniMaxNode {
     public MiniBoardPiece?[,]? BoardState { get; set; }
 
     /// <summary>
+    /// Move ordering priority (higher = evaluated earlier).
+    /// Used to track effectiveness of move ordering.
+    /// </summary>
+    public int MoveOrderPriority { get; set; }
+
+    /// <summary>
+    /// Reason for the move's priority (e.g., "capture:Queen", "promote:Queen", "quiet").
+    /// </summary>
+    public string MoveOrderReason { get; set; } = "quiet";
+
+    /// <summary>
+    /// True if this move was prioritized by move ordering (captures, promotions, etc.).
+    /// </summary>
+    public bool IsOrderedMove => MoveOrderPriority > 0;
+
+    /// <summary>
     /// Creates a string representation for debugging.
     /// </summary>
     public override string ToString() {
         var status = IsPruned ? "PRUNED" : (Score.HasValue ? $"Score: {Score}" : "...");
         var type = IsMaximizing ? "MAX" : "MIN";
-        return $"[{Id}] {MoveNotation} ({type}) α={Alpha} β={Beta} {status}";
+        var order = MoveOrderPriority > 0 ? $" [{MoveOrderReason}]" : "";
+        return $"[{Id}] {MoveNotation} ({type}) α={Alpha} β={Beta} {status}{order}";
     }
 }
 

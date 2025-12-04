@@ -19,6 +19,12 @@ public interface IVisualizablePlayer {
     bool AlphaBetaPruningEnabled { get; set; }
 
     /// <summary>
+    /// Gets or sets whether move ordering is enabled.
+    /// Move ordering improves alpha-beta pruning by evaluating likely good moves first.
+    /// </summary>
+    bool MoveOrderingEnabled { get; set; }
+
+    /// <summary>
     /// Gets or sets the search depth.
     /// </summary>
     int SearchDepth { get; set; }

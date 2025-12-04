@@ -18,9 +18,16 @@ public class MiniMaxPlayerWithStatistics : IPlayer, IVisualizablePlayer {
     private int _nodeIdCounter;
     private int _visitOrderCounter;
     private List<MiniMaxNode> _nodesInVisitOrder = new();
+    
+    // Move ordering statistics
+    private int _captureMovesFirst;
+    private int _promotionMovesFirst;
+    private int _cutoffsFromOrderedMoves;
+    private int _totalCutoffs;
 
     public PieceColor Color => _color;
     public bool AlphaBetaPruningEnabled { get; set; } = true;
+    public bool MoveOrderingEnabled { get; set; } = true;
     public int SearchDepth { get; set; } = 3;
 
     public MiniMaxPlayerWithStatistics(PieceColor color, IEvaluationFunction? evaluationFunction = null) {
@@ -32,11 +39,74 @@ public class MiniMaxPlayerWithStatistics : IPlayer, IVisualizablePlayer {
 
     public MiniMaxSearchResult? GetLastSearchResult() => _lastSearchResult;
 
+    /// <summary>
+    /// Piece values for MVV-LVA move ordering.
+    /// Higher value = more valuable piece.
+    /// </summary>
+    private static readonly Dictionary<Pieces.PieceType, int> PieceValues = new() {
+        { Pieces.PieceType.Pawn, 100 },
+        { Pieces.PieceType.Knight, 320 },
+        { Pieces.PieceType.Bishop, 330 },
+        { Pieces.PieceType.Rook, 500 },
+        { Pieces.PieceType.Queen, 900 },
+        { Pieces.PieceType.King, 20000 }
+    };
+
+    /// <summary>
+    /// Orders moves to improve alpha-beta pruning efficiency.
+    /// Priority: Captures (MVV-LVA) > Promotions > Other moves
+    /// </summary>
+    private List<(Move move, int priority, string orderReason)> OrderMoves(List<Move> moves, Board board) {
+        if (!MoveOrderingEnabled) {
+            return moves.Select(m => (m, 0, "unordered")).ToList();
+        }
+
+        var orderedMoves = new List<(Move move, int priority, string orderReason)>();
+
+        foreach (var move in moves) {
+            int priority = 0;
+            string reason = "quiet";
+
+            // Check for capture (MVV-LVA: Most Valuable Victim - Least Valuable Attacker)
+            var capturedPiece = board.GetPieceAtPosition(move.To);
+            var movingPiece = board.GetPieceAtPosition(move.From);
+            
+            if (capturedPiece != null && movingPiece != null) {
+                // MVV-LVA score: victim value * 10 - attacker value
+                // This prioritizes capturing high-value pieces with low-value pieces
+                int victimValue = PieceValues.GetValueOrDefault(capturedPiece.Type, 0);
+                int attackerValue = PieceValues.GetValueOrDefault(movingPiece.Type, 0);
+                priority = victimValue * 10 - attackerValue + 10000; // +10000 to ensure captures come first
+                reason = $"capture:{capturedPiece.Type}";
+                _captureMovesFirst++;
+            }
+
+            // Check for promotion
+            if (move.PromotedTo.HasValue) {
+                int promotionValue = PieceValues.GetValueOrDefault(move.PromotedTo.Value, 0);
+                priority = Math.Max(priority, promotionValue + 5000); // Promotions are very valuable
+                reason = $"promote:{move.PromotedTo.Value}";
+                _promotionMovesFirst++;
+            }
+
+            orderedMoves.Add((move, priority, reason));
+        }
+
+        // Sort by priority descending (highest priority first)
+        return orderedMoves.OrderByDescending(m => m.priority).ToList();
+    }
+
     public async Task<Move> GetMove(IGame game) {
         // Reset counters for new search
         _nodeIdCounter = 0;
         _visitOrderCounter = 0;
         _nodesInVisitOrder = new List<MiniMaxNode>();
+        
+        // Reset move ordering statistics
+        _captureMovesFirst = 0;
+        _promotionMovesFirst = 0;
+        _cutoffsFromOrderedMoves = 0;
+        _totalCutoffs = 0;
 
         // Create root node
         var rootNode = new MiniMaxNode {
@@ -80,6 +150,11 @@ public class MiniMaxPlayerWithStatistics : IPlayer, IVisualizablePlayer {
             NodesPruned = prunedCount,
             SearchDepth = SearchDepth,
             AlphaBetaEnabled = AlphaBetaPruningEnabled,
+            MoveOrderingEnabled = MoveOrderingEnabled,
+            CaptureMovesOrdered = _captureMovesFirst,
+            PromotionMovesOrdered = _promotionMovesFirst,
+            CutoffsFromOrderedMoves = _cutoffsFromOrderedMoves,
+            TotalCutoffs = _totalCutoffs,
             NodesInVisitOrder = _nodesInVisitOrder
         };
 
@@ -132,9 +207,12 @@ public class MiniMaxPlayerWithStatistics : IPlayer, IVisualizablePlayer {
             return (null!, int.MinValue, parentNode);
         }
 
-        var bestMove = possibleValidMoves[Random.Shared.Next(possibleValidMoves.Count)];
+        // Apply move ordering for better alpha-beta pruning
+        var orderedMoves = OrderMoves(possibleValidMoves, game.GetBoard());
+        var bestMove = orderedMoves[0].move;
+        int moveIndex = 0;
 
-        foreach (var move in possibleValidMoves) {
+        foreach (var (move, priority, orderReason) in orderedMoves) {
             // Simulate move first to capture board state
             var copiedGame = game.Clone(simulated: true);
             await copiedGame.DoMove(move);
@@ -150,7 +228,9 @@ public class MiniMaxPlayerWithStatistics : IPlayer, IVisualizablePlayer {
                 Beta = beta,
                 Parent = parentNode,
                 VisitOrder = _visitOrderCounter++,
-                BoardState = CaptureBoardState(copiedGame.GetBoard())
+                BoardState = CaptureBoardState(copiedGame.GetBoard()),
+                MoveOrderPriority = priority,
+                MoveOrderReason = orderReason
             };
             parentNode.Children.Add(childNode);
             _nodesInVisitOrder.Add(childNode);
@@ -168,9 +248,15 @@ public class MiniMaxPlayerWithStatistics : IPlayer, IVisualizablePlayer {
 
             // Alpha-beta pruning
             if (AlphaBetaPruningEnabled && beta <= alpha) {
+                _totalCutoffs++;
+                // Track if cutoff happened due to an ordered (high priority) move
+                if (priority > 0) {
+                    _cutoffsFromOrderedMoves++;
+                }
+                
                 // Mark remaining moves as pruned
-                var remainingMoves = possibleValidMoves.SkipWhile(m => m != move).Skip(1).ToList();
-                foreach (var prunedMove in remainingMoves) {
+                var remainingMoves = orderedMoves.Skip(moveIndex + 1).ToList();
+                foreach (var (prunedMove, prunedPriority, prunedReason) in remainingMoves) {
                     var prunedNode = new MiniMaxNode {
                         Id = _nodeIdCounter++,
                         Move = prunedMove,
@@ -182,13 +268,16 @@ public class MiniMaxPlayerWithStatistics : IPlayer, IVisualizablePlayer {
                         Parent = parentNode,
                         IsPruned = true,
                         PruneReason = $"β({beta}) ≤ α({alpha})",
-                        VisitOrder = _visitOrderCounter++
+                        VisitOrder = _visitOrderCounter++,
+                        MoveOrderPriority = prunedPriority,
+                        MoveOrderReason = prunedReason
                     };
                     parentNode.Children.Add(prunedNode);
                     _nodesInVisitOrder.Add(prunedNode);
                 }
                 break;
             }
+            moveIndex++;
         }
 
         parentNode.Score = maxEval;
@@ -220,9 +309,12 @@ public class MiniMaxPlayerWithStatistics : IPlayer, IVisualizablePlayer {
             return (null!, int.MinValue, parentNode);
         }
 
-        var bestMove = possibleValidMoves[Random.Shared.Next(possibleValidMoves.Count)];
+        // Apply move ordering for better alpha-beta pruning
+        var orderedMoves = OrderMoves(possibleValidMoves, game.GetBoard());
+        var bestMove = orderedMoves[0].move;
+        int moveIndex = 0;
 
-        foreach (var move in possibleValidMoves) {
+        foreach (var (move, priority, orderReason) in orderedMoves) {
             // Simulate move first to capture board state
             var copiedGame = game.Clone(simulated: true);
             await copiedGame.DoMove(move);
@@ -238,7 +330,9 @@ public class MiniMaxPlayerWithStatistics : IPlayer, IVisualizablePlayer {
                 Beta = beta,
                 Parent = parentNode,
                 VisitOrder = _visitOrderCounter++,
-                BoardState = CaptureBoardState(copiedGame.GetBoard())
+                BoardState = CaptureBoardState(copiedGame.GetBoard()),
+                MoveOrderPriority = priority,
+                MoveOrderReason = orderReason
             };
             parentNode.Children.Add(childNode);
             _nodesInVisitOrder.Add(childNode);
@@ -256,9 +350,15 @@ public class MiniMaxPlayerWithStatistics : IPlayer, IVisualizablePlayer {
 
             // Alpha-beta pruning
             if (AlphaBetaPruningEnabled && beta <= alpha) {
+                _totalCutoffs++;
+                // Track if cutoff happened due to an ordered (high priority) move
+                if (priority > 0) {
+                    _cutoffsFromOrderedMoves++;
+                }
+                
                 // Mark remaining moves as pruned
-                var remainingMoves = possibleValidMoves.SkipWhile(m => m != move).Skip(1).ToList();
-                foreach (var prunedMove in remainingMoves) {
+                var remainingMoves = orderedMoves.Skip(moveIndex + 1).ToList();
+                foreach (var (prunedMove, prunedPriority, prunedReason) in remainingMoves) {
                     var prunedNode = new MiniMaxNode {
                         Id = _nodeIdCounter++,
                         Move = prunedMove,
@@ -270,13 +370,16 @@ public class MiniMaxPlayerWithStatistics : IPlayer, IVisualizablePlayer {
                         Parent = parentNode,
                         IsPruned = true,
                         PruneReason = $"β({beta}) ≤ α({alpha})",
-                        VisitOrder = _visitOrderCounter++
+                        VisitOrder = _visitOrderCounter++,
+                        MoveOrderPriority = prunedPriority,
+                        MoveOrderReason = prunedReason
                     };
                     parentNode.Children.Add(prunedNode);
                     _nodesInVisitOrder.Add(prunedNode);
                 }
                 break;
             }
+            moveIndex++;
         }
 
         parentNode.Score = minEval;

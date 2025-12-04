@@ -38,6 +38,37 @@ public class MiniMaxSearchResult {
     public bool AlphaBetaEnabled { get; set; }
 
     /// <summary>
+    /// Whether move ordering was enabled.
+    /// </summary>
+    public bool MoveOrderingEnabled { get; set; }
+
+    /// <summary>
+    /// Number of capture moves that were ordered first.
+    /// </summary>
+    public int CaptureMovesOrdered { get; set; }
+
+    /// <summary>
+    /// Number of promotion moves that were ordered first.
+    /// </summary>
+    public int PromotionMovesOrdered { get; set; }
+
+    /// <summary>
+    /// Number of cutoffs that occurred due to ordered moves (captures/promotions).
+    /// </summary>
+    public int CutoffsFromOrderedMoves { get; set; }
+
+    /// <summary>
+    /// Total number of alpha-beta cutoffs.
+    /// </summary>
+    public int TotalCutoffs { get; set; }
+
+    /// <summary>
+    /// Percentage of cutoffs caused by move ordering (0-100).
+    /// </summary>
+    public double MoveOrderingEffectiveness => 
+        TotalCutoffs > 0 ? Math.Round((double)CutoffsFromOrderedMoves / TotalCutoffs * 100, 1) : 0;
+
+    /// <summary>
     /// Flattened list of all nodes in visit order for easy replay.
     /// </summary>
     public List<MiniMaxNode> NodesInVisitOrder { get; set; } = new();
