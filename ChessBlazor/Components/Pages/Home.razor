@@ -13,6 +13,7 @@
         ("Very Random AI", color => new VeryRandomMovePlayer(color)),
         ("Greedy AI", color => new GreedyPlayer(color)),
         ("MiniMax AI with Material Eval", color => new MiniMaxPlayer(color, new MaterialEvaluation())),
+        ("MiniMax AI with Material Eval (stats)", color => new MiniMaxPlayerWithStatistics(color, new MaterialEvaluation())),
         ("MiniMax AI with MatMob Eval", color => new MiniMaxPlayer(color, new MaterialMobilityFunction()))
     };
 

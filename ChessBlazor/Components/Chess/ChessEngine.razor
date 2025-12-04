@@ -5,130 +5,199 @@
 @using ChessBlazor.Components.Chess.Player
 @using global::Chess.Programming.Ago.ChessEngines
 
-<div>
-<div class="game-controls">
-    @if (!isGameStarted) {
-        <button class="btn btn-primary" @onclick="StartGame">Start Game</button>
-    } else {
-        <div class="game-status">
-            @if (game.IsFinished() && game.Winner != null) {
-                <div class="winner-display">
-                    🏆 @game.GetGameEndReason() - @game.Winner.Color wins!
-                </div>
-            } else if (game.IsFinished()) {
-                <div class="winner-display draw">
-                    🤝 @game.GetGameEndReason() - Draw!
-                </div>
+<div class="chess-engine-wrapper">
+    <div class="chess-game-section">
+        <div class="game-controls">
+            @if (!isGameStarted) {
+                <button class="btn btn-primary" @onclick="StartGame">Start Game</button>
             } else {
-                <div class="spinner-container">
-                    <div class="spinner"></div>
-                    <span class="game-active-text">Game active</span>
-                </div>
-            }
-        </div>
-    }
-</div>
-
-<div class="notification-center">
-    @if(isGameStarted && game.IsChecked(game.GetCurrentPlayer().Color)) {
-        <div class="notification notification-warning">
-            @((game.GetCurrentPlayer().Color == PieceColor.White ? "White" : "Black") + " is in check")!
-        </div>
-    } 
-</div>
-
-<div class="game-layout">
-    <div class="captured-pieces-panel captured-pieces-white">
-        <h3>Captured by White</h3>
-        <div class="captured-pieces-list">
-            @foreach(var piece in board.GetCapturedPieces().Where(p => p.Color == PieceColor.Black)) {
-                <div class="captured-piece @(@piece.Type.ToString().ToLower())-@(@piece.Color.ToString().ToLower())"></div>
-            }
-        </div>
-    </div>
-
-    <div class="board-container">
-        <div class="board-header">
-            <div class="badge badge-black @(game.GetCurrentPlayer().Color == PieceColor.Black ? "badge-is-turn" : "")">Black</div>
-            <div class="badge badge-algorithm">@BlackPlayer.GetType().Name</div>
-        </div>
-        <div class="board-body">
-            @for(int i = 0; i < 8; i++) {
-                <div class="board-column">
-                    @for(int j = 0; j < 8; j++) {
-                        var row = i;
-                        var column = j;
-                        var position = new Position(row, column);
-                        var promotionMovesToThisSquare = validMovesForselectedCellPosition
-                            .Where(move => move.To == position && move.PromotedTo != null)
-                            .ToList();
-                        var hasPromotionOptions = promotionMovesToThisSquare.Count >= 1;
-                        
-                        <div class="board-row-cell 
-                                @(selectedCellPosition == new Position(row, column) ? "board-row-cell-selected" : "") 
-                                @((row + column) % 2 == 0 ? "board-row-cell-even" : "board-row-cell-odd") 
-                                @(game.GetLastMove()?.From == position ? "board-row-cell-last-move-from" : "")
-                                @(game.GetLastMove()?.To == position ? "board-row-cell-last-move-to" : "")
-                                @(validMovesForselectedCellPosition.Any(move => move.To == new Position(row, column)) ? "board-row-cell-valid-move" : "")"
-                                @onclick="() => HandleCellClick(position)"
-                                ondragover="event.preventDefault();"
-                                @ondrop="() => HandleDrop(position)">
-                            @{
-                                var piece = board.GetPieceAtPosition(position);
-                                var isDraggable = piece != null && piece.Color == game.GetCurrentPlayer().Color && isGameStarted && !game.GetCurrentPlayer().IsAI() && !game.IsFinished();
-                                if(hasPromotionOptions) {
-                                    <div class="promotion-options">
-                                        @foreach(var promoMove in promotionMovesToThisSquare) {
-                                            if(promoMove.PromotedTo.HasValue) {
-                                                var pieceType = promoMove.PromotedTo.Value;
-                                                var pieceColor = game.GetCurrentPlayer().Color;
-                                                <div class="promotion-option @(@pieceType.ToString().ToLower())-@(@pieceColor.ToString().ToLower())"
-                                                     @onclick="() => HandlePromotionClick(promoMove)"
-                                                     @onclick:stopPropagation="true">
-                                                </div>
-                                            }
-                                        }
-                                    </div>
-                                } else if(piece != null) {
-                                    <div class="board-piece @(@piece.Type.ToString().ToLower())-@(@piece.Color.ToString().ToLower()) @(isDraggable ? "draggable-piece" : "")"
-                                         draggable="@isDraggable.ToString().ToLower()"
-                                         @ondragstart="() => HandleDragStart(position)"
-                                         @ondragend="HandleDragEnd">
-                                    </div>
-                                } else {
-                                    <span class="board-empty-text">
-                                    </span>
-                                }
-                            }
+                <div class="game-status">
+                    @if (game.IsFinished() && game.Winner != null) {
+                        <div class="winner-display">
+                            @game.GetGameEndReason() - @game.Winner.Color wins!
+                        </div>
+                    } else if (game.IsFinished()) {
+                        <div class="winner-display draw">
+                            @game.GetGameEndReason() - Draw!
+                        </div>
+                    } else {
+                        <div class="spinner-container">
+                            <div class="spinner"></div>
+                            <span class="game-active-text">Game active</span>
                         </div>
                     }
                 </div>
             }
-        </div>
-        <div class="board-footer">
-            <div class="badge badge-white @(game.GetCurrentPlayer().Color == PieceColor.White ? "badge-is-turn" : "")">White</div>
-            <div class="badge badge-algorithm">@WhitePlayer.GetType().Name</div>
-        </div>
-    </div>
-
-    <div class="captured-pieces-panel captured-pieces-black">
-        <h3>Captured by Black</h3>
-        <div class="captured-pieces-list">
-            @foreach(var piece in board.GetCapturedPieces().Where(p => p.Color == PieceColor.White)) {
-                <div class="captured-piece @(@piece.Type.ToString().ToLower())-@(@piece.Color.ToString().ToLower())"></div>
+            
+            @if (HasVisualizablePlayer && lastSearchResult != null) {
+                <button class="btn btn-visualization" @onclick="ToggleVisualization">
+                    View Algorithm
+                </button>
             }
         </div>
+
+        @if (HasVisualizablePlayer) {
+            <div class="algorithm-settings">
+                <label class="setting-item">
+                    <input type="checkbox" @bind="alphaBetaEnabled" @bind:after="UpdateAlphaBetaSetting" />
+                    <span>Alpha-Beta Pruning</span>
+                </label>
+                <label class="setting-item">
+                    <span>Search Depth:</span>
+                    <input type="number" min="1" max="4" @bind="searchDepth" @bind:after="UpdateSearchDepthSetting" />
+                </label>
+            </div>
+        }
+
+        <div class="notification-center">
+            @if(isGameStarted && game.IsChecked(game.GetCurrentPlayer().Color)) {
+                <div class="notification notification-warning">
+                    @((game.GetCurrentPlayer().Color == PieceColor.White ? "White" : "Black") + " is in check")!
+                </div>
+            } 
+        </div>
+
+        <div class="game-layout">
+            <div class="captured-pieces-panel captured-pieces-white">
+                <h3>Captured by White</h3>
+                <div class="captured-pieces-list">
+                    @foreach(var piece in board.GetCapturedPieces().Where(p => p.Color == PieceColor.Black)) {
+                        <div class="captured-piece @(@piece.Type.ToString().ToLower())-@(@piece.Color.ToString().ToLower())"></div>
+                    }
+                </div>
+            </div>
+
+            <div class="board-container">
+                <div class="board-header">
+                    <div class="badge badge-black @(game.GetCurrentPlayer().Color == PieceColor.Black ? "badge-is-turn" : "")">Black</div>
+                    <div class="badge badge-algorithm">@BlackPlayer.GetType().Name</div>
+                </div>
+                <div class="board-body">
+                    @for(int i = 0; i < 8; i++) {
+                        <div class="board-column">
+                            @for(int j = 0; j < 8; j++) {
+                                var row = i;
+                                var column = j;
+                                var position = new Position(row, column);
+                                var promotionMovesToThisSquare = validMovesForselectedCellPosition
+                                    .Where(move => move.To == position && move.PromotedTo != null)
+                                    .ToList();
+                                var hasPromotionOptions = promotionMovesToThisSquare.Count >= 1;
+                                
+                                <div class="board-row-cell 
+                                        @(selectedCellPosition == new Position(row, column) ? "board-row-cell-selected" : "") 
+                                        @((row + column) % 2 == 0 ? "board-row-cell-even" : "board-row-cell-odd") 
+                                        @(game.GetLastMove()?.From == position ? "board-row-cell-last-move-from" : "")
+                                        @(game.GetLastMove()?.To == position ? "board-row-cell-last-move-to" : "")
+                                        @(validMovesForselectedCellPosition.Any(move => move.To == new Position(row, column)) ? "board-row-cell-valid-move" : "")"
+                                        @onclick="() => HandleCellClick(position)"
+                                        ondragover="event.preventDefault();"
+                                        @ondrop="() => HandleDrop(position)">
+                                    @{
+                                        var piece = board.GetPieceAtPosition(position);
+                                        var isDraggable = piece != null && piece.Color == game.GetCurrentPlayer().Color && isGameStarted && !game.GetCurrentPlayer().IsAI() && !game.IsFinished();
+                                        if(hasPromotionOptions) {
+                                            <div class="promotion-options">
+                                                @foreach(var promoMove in promotionMovesToThisSquare) {
+                                                    if(promoMove.PromotedTo.HasValue) {
+                                                        var pieceType = promoMove.PromotedTo.Value;
+                                                        var pieceColor = game.GetCurrentPlayer().Color;
+                                                        <div class="promotion-option @(@pieceType.ToString().ToLower())-@(@pieceColor.ToString().ToLower())"
+                                                             @onclick="() => HandlePromotionClick(promoMove)"
+                                                             @onclick:stopPropagation="true">
+                                                        </div>
+                                                    }
+                                                }
+                                            </div>
+                                        } else if(piece != null) {
+                                            <div class="board-piece @(@piece.Type.ToString().ToLower())-@(@piece.Color.ToString().ToLower()) @(isDraggable ? "draggable-piece" : "")"
+                                                 draggable="@isDraggable.ToString().ToLower()"
+                                                 @ondragstart="() => HandleDragStart(position)"
+                                                 @ondragend="HandleDragEnd">
+                                            </div>
+                                        } else {
+                                            <span class="board-empty-text">
+                                            </span>
+                                        }
+                                    }
+                                </div>
+                            }
+                        </div>
+                    }
+                </div>
+                <div class="board-footer">
+                    <div class="badge badge-white @(game.GetCurrentPlayer().Color == PieceColor.White ? "badge-is-turn" : "")">White</div>
+                    <div class="badge badge-algorithm">@WhitePlayer.GetType().Name</div>
+                </div>
+            </div>
+
+            <div class="captured-pieces-panel captured-pieces-black">
+                <h3>Captured by Black</h3>
+                <div class="captured-pieces-list">
+                    @foreach(var piece in board.GetCapturedPieces().Where(p => p.Color == PieceColor.White)) {
+                        <div class="captured-piece @(@piece.Type.ToString().ToLower())-@(@piece.Color.ToString().ToLower())"></div>
+                    }
+                </div>
+            </div>
+        </div>
     </div>
 </div>
-</div>
+
+@if (showVisualization) {
+    <MiniMaxTreeVisualization SearchResult="@lastSearchResult" OnClose="CloseVisualization" />
+}
 
 <style>
+    .chess-engine-wrapper {
+        display: flex;
+        flex-direction: column;
+        width: 100%;
+    }
+
+    .chess-game-section {
+        flex: 1;
+        min-width: 0;
+    }
+
     .game-controls {
         display: flex;
         justify-content: center;
         align-items: center;
         padding: 1rem;
         margin-bottom: 1rem;
+        gap: 1rem;
+        flex-wrap: wrap;
+    }
+
+    .algorithm-settings {
+        display: flex;
+        justify-content: center;
+        gap: 2rem;
+        padding: 0.75rem 1.5rem;
+        margin-bottom: 1rem;
+        background: #f5f5f7;
+        border-radius: 12px;
+        flex-wrap: wrap;
+    }
+
+    .setting-item {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        cursor: pointer;
+    }
+
+    .setting-item input[type="checkbox"] {
+        width: 18px;
+        height: 18px;
+        cursor: pointer;
+    }
+
+    .setting-item input[type="number"] {
+        width: 60px;
+        padding: 0.25rem 0.5rem;
+        border: 1px solid #ccc;
+        border-radius: 4px;
     }
 
     .board-row-cell-last-move-from,
@@ -154,6 +223,20 @@
     .btn-primary:hover {
         background-color: #45a049;
         transform: scale(1.05);
+    }
+
+    .btn-visualization {
+        background-color: #007aff;
+        color: white;
+        padding: 0.625rem 1.25rem;
+        font-size: 0.875rem;
+        border-radius: 10px;
+        font-weight: 500;
+    }
+
+    .btn-visualization:hover {
+        background-color: #0056b3;
+        transform: scale(1.02);
     }
 
     .game-status {
@@ -368,7 +451,7 @@
     }
 
     .badge.badge-is-turn::before {
-        content: "•";
+        content: ">";
         font-weight: bold;
         color: #90ff7a;
         margin-right: 0.5rem;
@@ -483,6 +566,10 @@
     private Position? selectedCellPosition = null;
     private List<Move> validMovesForselectedCellPosition = new List<Move>();
     private Position? draggedPiecePosition = null;
+    private bool showVisualization = false;
+    private MiniMaxSearchResult? lastSearchResult = null;
+    private bool alphaBetaEnabled = true;
+    private int searchDepth = 3;
 
     [Parameter]
     public IPlayer WhitePlayer { get; set; } = new HumanBlazorPlayer(PieceColor.White);
@@ -497,18 +584,65 @@
     private Board board = new Board();
     private bool isGameStarted = false;
 
+    private bool HasVisualizablePlayer => 
+        WhitePlayer is IVisualizablePlayer || BlackPlayer is IVisualizablePlayer;
+
+    private IVisualizablePlayer? GetVisualizablePlayer() {
+        if (WhitePlayer is IVisualizablePlayer vp) return vp;
+        if (BlackPlayer is IVisualizablePlayer vp2) return vp2;
+        return null;
+    }
+
     protected override void OnInitialized() {
         game = new Game(WhitePlayer, BlackPlayer, DelayPerMoveInMilliseconds);
+        
+        // Initialize settings from player if available
+        var visualizablePlayer = GetVisualizablePlayer();
+        if (visualizablePlayer != null) {
+            alphaBetaEnabled = visualizablePlayer.AlphaBetaPruningEnabled;
+            searchDepth = visualizablePlayer.SearchDepth;
+        }
     }
 
     protected override async Task OnAfterRenderAsync(bool firstRender) {
         if(firstRender) {
             game.NextMoveHandler = async () => {
-                board = game.GetBoard(); 
+                board = game.GetBoard();
+                
+                // Capture search result after AI move
+                var visualizablePlayer = GetVisualizablePlayer();
+                if (visualizablePlayer != null) {
+                    lastSearchResult = visualizablePlayer.GetLastSearchResult();
+                }
+                
                 StateHasChanged(); 
             };
             
             board = game.GetBoard();
+        }
+    }
+
+    private void ToggleVisualization() {
+        showVisualization = true;
+        StateHasChanged();
+    }
+
+    private void CloseVisualization() {
+        showVisualization = false;
+        StateHasChanged();
+    }
+
+    private void UpdateAlphaBetaSetting() {
+        var visualizablePlayer = GetVisualizablePlayer();
+        if (visualizablePlayer != null) {
+            visualizablePlayer.AlphaBetaPruningEnabled = alphaBetaEnabled;
+        }
+    }
+
+    private void UpdateSearchDepthSetting() {
+        var visualizablePlayer = GetVisualizablePlayer();
+        if (visualizablePlayer != null) {
+            visualizablePlayer.SearchDepth = Math.Clamp(searchDepth, 1, 5);
         }
     }
 
