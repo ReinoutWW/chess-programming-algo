@@ -2,6 +2,7 @@ namespace Chess.Programming.Ago.Core;
 
 using Chess.Programming.Ago.Pieces;
 using Chess.Programming.Ago.Core.Extensions;
+using System.ComponentModel;
 
 /// <summary>
 /// A bitboard implementation of the chess board.
@@ -23,6 +24,8 @@ public class BitBoard : IVisualizedBoard {
     private ulong _blackPieces;
 
     private const ulong NOT_A_FILE = 0xFEFEFEFEFEFEFEFE;
+    private const ulong NOT_B_FILE = 0xFDFDFDFDFDFDFDFD;
+    private const ulong NOT_G_FILE = 0xBFBFBFBFBFBFBFBF;
     private const ulong NOT_H_FILE = 0x7F7F7F7F7F7F7F7F;
 
     // Rank masks (for double push logic)
@@ -34,6 +37,14 @@ public class BitBoard : IVisualizedBoard {
     private const ulong RANK_6 = 0x0000FF0000000000;
     private const ulong RANK_7 = 0x00FF000000000000;
     private const ulong RANK_8 = 0xFF00000000000000;
+
+    private static ulong[] KNIGHT_ATTACKS = new ulong[64];
+    private static ulong[] KING_ATTACKS = new ulong[64];
+
+    static BitBoard() {
+        PrecomputeKnightAttacks();
+        PrecomputeKingAttacks();
+    }
 
     public BitBoard() {
         _occupiedSquares = 0;
@@ -187,6 +198,82 @@ public class BitBoard : IVisualizedBoard {
     }
 
     /// <summary>
+    /// Precomputes the knight attacks for all positions so in the future, a lookup is O(1) time complexity.
+    /// </summary>
+    private static void PrecomputeKnightAttacks() {
+        for(int i = 0; i < 64; i++) {
+            KNIGHT_ATTACKS[i] = GetKnightAttacks(i);
+        }
+    }
+
+    /// <summary>
+    /// Gets the knight attacks for a given position.
+    /// </summary>
+    /// <param name="position">The position to get the knight attacks for</param>
+    /// <returns>A bitboard of all squares the knight can attack</returns>
+    private static ulong GetKnightAttacks(int position) {
+        var knight = 1UL << position;
+
+        var NOT_AB_FILE = NOT_A_FILE & NOT_B_FILE;
+        var NOT_GH_FILE = NOT_G_FILE & NOT_H_FILE;
+
+        var possibleMoveFour = (knight & NOT_A_FILE) << 15;
+        var possibleMoveFive = (knight & NOT_A_FILE) >> 17;
+        var possibleMoveEight = (knight & NOT_H_FILE) >> 15;
+        var possibleMoveOne = (knight & NOT_H_FILE) << 17;
+        var possibleMoveSix = (knight & NOT_AB_FILE) >> 10;
+        var possibleMoveThree = (knight & NOT_AB_FILE) << 6;
+        var possibleMoveTwo = (knight & NOT_GH_FILE) << 10;
+        var possibleMoveSeven = (knight & NOT_GH_FILE) >> 6;
+
+        return possibleMoveOne 
+            | possibleMoveTwo 
+            | possibleMoveThree 
+            | possibleMoveFour 
+            | possibleMoveFive 
+            | possibleMoveSix 
+            | possibleMoveSeven 
+            | possibleMoveEight;
+    }
+
+    /// <summary>
+    /// Precomputes the king attacks for all positions so in the future, a lookup is O(1) time complexity.
+    /// </summary>
+    private static void PrecomputeKingAttacks() {
+        for(int i = 0; i < 64; i++) {
+            KING_ATTACKS[i] = GetKingAttacks(i);
+        }
+    }
+
+    /// <summary>
+    /// Gets the king attacks for a given position.
+    /// </summary>
+    /// <param name="position">The position to get the king attacks for</param>
+    /// <returns>A bitboard of all squares the king can attack</returns>
+    private static ulong GetKingAttacks(int position) {
+        var king = 1UL << position;
+   
+        var possibleMoveOne = (king & NOT_H_FILE) << 1;
+        var possibleMoveTwo = (king & NOT_A_FILE) >> 1;
+        var possibleMoveThree = (king & NOT_H_FILE) << 9;
+        var possibleMoveFive = (king & NOT_A_FILE) >> 9;
+        var possibleMoveSix = (king & NOT_A_FILE) << 7;
+        var possibleMoveSeven = (king & NOT_H_FILE) >> 7;
+        var possibleMoveFour = (king) >> 8;
+        var possibleMoveEight = (king) << 8;
+
+        return possibleMoveOne 
+            | possibleMoveTwo 
+            | possibleMoveThree 
+            | possibleMoveFour 
+            | possibleMoveFive 
+            | possibleMoveSix 
+            | possibleMoveSeven 
+            | possibleMoveEight;
+    }
+
+
+    /// <summary>
     /// Returns a bitboard of all squares white pawns can push to.
     /// </summary>
     public ulong GetWhitePawnPushes() {
@@ -249,6 +336,16 @@ public class BitBoard : IVisualizedBoard {
 
         Console.WriteLine("\n\nBlack Pawn Pushes:");
         LogSquare(GetBlackPawnPushes());
+
+        for(int i = 0; i < 64; i++) {
+            Console.WriteLine("\n\nKnight Attacks:");
+            var king = 1UL << i;
+
+            // Add knight as well (index)
+            var kingAttacks = KING_ATTACKS[i] | king;
+            
+            LogSquare(kingAttacks);
+        }
     }
 
     private void LogSquare(ulong bitboard) {
