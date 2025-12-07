@@ -187,6 +187,60 @@ public class BitBoard : IVisualizedBoard {
         PlacePiece(fromColor.Value, fromType.Value, toPosition);
     }
 
+    public bool IsSquareAttacked(PieceColor color, Position position) {
+        var square = position.ToBitPosition();
+        var enemyColor = color == PieceColor.White ? PieceColor.Black : PieceColor.White;
+        
+        // Now reuse enemyColor:
+        if ((KNIGHT_ATTACKS[square] & _pieces[(int)enemyColor, (int)PieceType.Knight]) != 0)
+            return true;
+        
+        if ((KING_ATTACKS[square] & _pieces[(int)enemyColor, (int)PieceType.King]) != 0)
+            return true;
+        
+        var bishopAttacks = GetBishopAttacks(square, _occupiedSquares);
+        if ((bishopAttacks & _pieces[(int)enemyColor, (int)PieceType.Bishop]) != 0)
+            return true;
+    
+        var rookAttacks = GetRookAttacks(square, _occupiedSquares);
+        if ((rookAttacks & _pieces[(int)enemyColor, (int)PieceType.Rook]) != 0)
+            return true;
+        
+        var queenAttacks = GetQueenAttacks(square, _occupiedSquares);
+        if ((queenAttacks & _pieces[(int)enemyColor, (int)PieceType.Queen]) != 0)
+            return true;
+
+        ulong squareBB = 1UL << square;
+        ulong enemyPawns = _pieces[(int)enemyColor, (int)PieceType.Pawn];
+
+        if (enemyColor == PieceColor.White) {
+            ulong attackerLeft = (squareBB & NOT_A_FILE) >> 9;
+            ulong attackerRight = (squareBB & NOT_H_FILE) >> 7;
+            if (((attackerLeft | attackerRight) & enemyPawns) != 0)
+                return true;
+        } else {
+            ulong attackerLeft = (squareBB & NOT_A_FILE) << 7;
+            ulong attackerRight = (squareBB & NOT_H_FILE) << 9;
+            if (((attackerLeft | attackerRight) & enemyPawns) != 0)
+                return true;
+        }
+
+        return false;
+    }
+
+    public bool IsInCheck(PieceColor color) {
+        var kingPosition = GetKingPosition(color);
+
+        return IsSquareAttacked(color, kingPosition);
+    }
+
+    private Position GetKingPosition(PieceColor color) {
+        var king = _pieces[(int)color, (int)PieceType.King];
+        var square = BitBoardExtensions.PopLsb(ref king);
+        
+        return new Position(square / 8, square % 8);
+    }
+
     /// <summary>
     /// This will do 8 bit checks to get the piece at the position.
     /// First: 

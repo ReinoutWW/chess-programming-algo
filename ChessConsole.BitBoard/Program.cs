@@ -37,7 +37,6 @@ foreach(var move in moves) {
 
 board.LogBoard();
 
-
 enum Columns {
     A,
     B,
