@@ -2,8 +2,6 @@ namespace Chess.Programming.Ago.Core;
 
 using Chess.Programming.Ago.Pieces;
 using Chess.Programming.Ago.Core.Extensions;
-using System.Net;
-using System.Resources;
 
 /// <summary>
 /// A bitboard implementation of the chess board.
@@ -636,8 +634,8 @@ public class BitBoard : IVisualizedBoard {
     }
 
     public List<Move> GenerateMoves(PieceColor color) {
-        var moves = new List<Move>();
-        
+        var moves = new List<Move>(48);
+
         GeneratePawnMoves(color, moves);
         GenerateKnightMoves(color, moves);
         GenerateBishopMoves(color, moves);

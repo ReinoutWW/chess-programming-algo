@@ -154,8 +154,8 @@ public class BitBoardGame : IGame {
 
     public List<Move> GetAllValidMovesForColor(PieceColor color) {
         var pseudoLegal = board.GenerateMoves(color);
-        var legal = new List<Move>();
-        
+        var legal = new List<Move>(pseudoLegal.Count); // Pre-allocate based on pseudo-legal count
+
         foreach (var move in pseudoLegal) {
             var undoInfo = board.ApplyMove(move);
             
