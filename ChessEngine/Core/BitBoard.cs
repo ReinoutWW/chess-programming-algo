@@ -455,57 +455,248 @@ public class BitBoard : IVisualizedBoard {
         return ROOK_ATTACKS[square][index];
     }
 
+    public List<Move> GenerateMoves(PieceColor color) {
+        var moves = new List<Move>();
+        
+        GeneratePawnMoves(color, moves);
+        GenerateKnightMoves(color, moves);
+        GenerateBishopMoves(color, moves);
+        GenerateRookMoves(color, moves);
+        GenerateQueenMoves(color, moves);
+        GenerateKingMoves(color, moves);
+        
+        return moves;
+    }
+
+    private void GeneratePawnMoves(PieceColor color, List<Move> moves) {
+        var pawns = _pieces[(int)color, (int)PieceType.Pawn];
+        var emptySquares = ~_occupiedSquares;
+
+        GetPawnSinglePush(color, pawns, emptySquares, moves);
+        GetPawnDoublePush(color, pawns, emptySquares, moves);
+        GetPawnAttacks(color, pawns, moves);
+        GetPawnPromotions(color, pawns, moves);
+    }
+
+    private void GetPawnPromotions(PieceColor color, ulong pawns, List<Move> moves) {
+        var emptySquares = ~_occupiedSquares;
+        var enemySquares = color == PieceColor.White ? _blackPieces : _whitePieces;
+
+        // Now check either capture or single push
+        var singlePush = (pawns.Shift(color == PieceColor.White ? 8 : -8)) & emptySquares & (color == PieceColor.White ? RANK_8 : RANK_1);
+
+        while(singlePush != 0) {
+            int toSquare = BitBoardExtensions.PopLsb(ref singlePush);
+            int fromSquare = toSquare - (color == PieceColor.White ? 8 : -8);
+            var from = new Position(fromSquare / 8, fromSquare % 8);
+            var to = new Position(toSquare / 8, toSquare % 8);
+            
+            moves.Add(new Move(from, to, PieceType.Queen));
+            moves.Add(new Move(from, to, PieceType.Rook));
+            moves.Add(new Move(from, to, PieceType.Bishop));
+            moves.Add(new Move(from, to, PieceType.Knight));
+        }
+
+        var leftAttack = pawns & (color == PieceColor.White ? NOT_A_FILE : NOT_H_FILE);
+        leftAttack = leftAttack.Shift(color == PieceColor.White ? 7 : -7);
+        leftAttack = leftAttack & enemySquares & (color == PieceColor.White ? RANK_8 : RANK_1);
+
+        var rightAttack = pawns & (color == PieceColor.White ? NOT_H_FILE : NOT_A_FILE);
+        rightAttack = rightAttack.Shift(color == PieceColor.White ? 9 : -9);
+        rightAttack = rightAttack & enemySquares & (color == PieceColor.White ? RANK_8 : RANK_1);
+
+        while(leftAttack != 0) {
+            int toSquare = BitBoardExtensions.PopLsb(ref leftAttack);
+            int fromSquare = toSquare - (color == PieceColor.White ? 7 : -7);
+            var from = new Position(fromSquare / 8, fromSquare % 8);
+            var to = new Position(toSquare / 8, toSquare % 8);
+            moves.Add(new Move(from, to, PieceType.Queen));
+            moves.Add(new Move(from, to, PieceType.Rook));
+            moves.Add(new Move(from, to, PieceType.Bishop));
+            moves.Add(new Move(from, to, PieceType.Knight));
+        }
+
+        while(rightAttack != 0) {
+            int toSquare = BitBoardExtensions.PopLsb(ref rightAttack);
+            int fromSquare = toSquare - (color == PieceColor.White ? 9 : -9);
+            var from = new Position(fromSquare / 8, fromSquare % 8);
+            var to = new Position(toSquare / 8, toSquare % 8);
+            moves.Add(new Move(from, to, PieceType.Queen));
+            moves.Add(new Move(from, to, PieceType.Rook));
+            moves.Add(new Move(from, to, PieceType.Bishop));
+            moves.Add(new Move(from, to, PieceType.Knight));
+        }
+    }
+
+    private void GetPawnAttacks(PieceColor color, ulong pawns, List<Move> moves) {
+        var leftShiftDirection = color == PieceColor.White ? 7 : -7;
+        var rightShiftDirection = color == PieceColor.White ? 9 : -9;
+
+        var leftPossibleAttack = pawns;
+        var rightPossibleAttack =pawns;
+        
+        var enemies = color == PieceColor.White ? _blackPieces : _whitePieces;
+
+        if(color == PieceColor.White) {
+            leftPossibleAttack = leftPossibleAttack & NOT_A_FILE;
+            rightPossibleAttack = rightPossibleAttack & NOT_H_FILE;
+        } else {
+            leftPossibleAttack = leftPossibleAttack & NOT_H_FILE;
+            rightPossibleAttack = rightPossibleAttack & NOT_A_FILE;
+        }
+
+        leftPossibleAttack = leftPossibleAttack.Shift(leftShiftDirection) & (color == PieceColor.White ? ~RANK_8 : ~RANK_1);
+        rightPossibleAttack = rightPossibleAttack.Shift(rightShiftDirection) & (color == PieceColor.White ? ~RANK_8 : ~RANK_1);
+
+        var leftAttacks = leftPossibleAttack & enemies;
+        var rightAttacks = rightPossibleAttack & enemies;
+
+        while(leftAttacks != 0) {
+            int toSquare = BitBoardExtensions.PopLsb(ref leftAttacks);
+            int fromSquare = toSquare - leftShiftDirection;
+            var from = new Position(fromSquare / 8, fromSquare % 8);
+            var to = new Position(toSquare / 8, toSquare % 8);
+            moves.Add(new Move(from, to));
+        }
+        
+        while(rightAttacks != 0) {
+            int toSquare = BitBoardExtensions.PopLsb(ref rightAttacks);
+            int fromSquare = toSquare - rightShiftDirection;
+            var from = new Position(fromSquare / 8, fromSquare % 8);
+            var to = new Position(toSquare / 8, toSquare % 8);
+            moves.Add(new Move(from, to));
+        }
+    }
+
+    private void GetPawnSinglePush(PieceColor color, ulong pawns, ulong emptySquares, List<Move> moves) {
+        var shiftDirection = color == PieceColor.White ? 8 : -8;
+        var singlePush = (pawns.Shift(shiftDirection)) & emptySquares & ~(color == PieceColor.White ? RANK_8 : RANK_1);
+
+        while(singlePush != 0) {
+            int toSquare = BitBoardExtensions.PopLsb(ref singlePush);
+            int fromSquare = toSquare - shiftDirection; 
+            var from = new Position(fromSquare / 8, fromSquare % 8);
+            var to = new Position(toSquare / 8, toSquare % 8);
+            moves.Add(new Move(from, to));
+        }
+    }
+
+    private void GetPawnDoublePush(PieceColor color, ulong pawns, ulong emptySquares, List<Move> moves) {
+        var shiftDirection = color == PieceColor.White ? 16 : -16;
+        var doublePush = (pawns.Shift(shiftDirection)) & emptySquares & (color == PieceColor.White ? RANK_4 : RANK_5);
+
+        while(doublePush != 0) {
+            int toSquare = BitBoardExtensions.PopLsb(ref doublePush);
+            int fromSquare = toSquare - shiftDirection;
+            var from = new Position(fromSquare / 8, fromSquare % 8);
+            var to = new Position(toSquare / 8, toSquare % 8);
+            moves.Add(new Move(from, to));
+        }
+    }
+
+    private void GenerateKnightMoves(PieceColor color, List<Move> moves) {
+        var knights = _pieces[(int)color, (int)PieceType.Knight];
+
+        while(knights != 0) {
+          int fromSquare = BitBoardExtensions.PopLsb(ref knights);
+            ulong attacks = KNIGHT_ATTACKS[fromSquare];
+            attacks &= ~(color == PieceColor.White ? _whitePieces : _blackPieces);
+            
+            while (attacks != 0) {
+                int toSquare = BitBoardExtensions.PopLsb(ref attacks);
+
+                var from = new Position(fromSquare / 8, fromSquare % 8);
+                var to = new Position(toSquare / 8, toSquare % 8);
+                
+                moves.Add(new Move(from, to));
+            }
+        }
+    }
+
+    private void GenerateBishopMoves(PieceColor color, List<Move> moves) {
+        var bishops = _pieces[(int)color, (int)PieceType.Bishop];
+
+        while(bishops != 0) {
+            int fromSquare = BitBoardExtensions.PopLsb(ref bishops);
+            ulong attacks = GetBishopAttacks(fromSquare, _occupiedSquares);
+            attacks &= ~(color == PieceColor.White ? _whitePieces : _blackPieces);
+            
+            while(attacks != 0) {
+                int toSquare = BitBoardExtensions.PopLsb(ref attacks);
+
+                var from = new Position(fromSquare / 8, fromSquare % 8);
+                var to = new Position(toSquare / 8, toSquare % 8);
+                
+                moves.Add(new Move(from, to));
+            }
+        }
+    }
+
+    private void GenerateRookMoves(PieceColor color, List<Move> moves) {
+        var rooks = _pieces[(int)color, (int)PieceType.Rook];
+
+        while(rooks != 0) {
+            int fromSquare = BitBoardExtensions.PopLsb(ref rooks);
+            ulong attacks = GetRookAttacks(fromSquare, _occupiedSquares);
+            attacks &= ~(color == PieceColor.White ? _whitePieces : _blackPieces);
+            
+            while(attacks != 0) {
+                int toSquare = BitBoardExtensions.PopLsb(ref attacks);
+
+                var from = new Position(fromSquare / 8, fromSquare % 8);
+                var to = new Position(toSquare / 8, toSquare % 8);
+                
+                moves.Add(new Move(from, to));
+            }
+        }
+    }
+
+    private void GenerateQueenMoves(PieceColor color, List<Move> moves) {
+        var queens = _pieces[(int)color, (int)PieceType.Queen];
+
+        while(queens != 0) {
+            int fromSquare = BitBoardExtensions.PopLsb(ref queens);
+            ulong attacks = GetQueenAttacks(fromSquare, _occupiedSquares);
+            attacks &= ~(color == PieceColor.White ? _whitePieces : _blackPieces);
+            
+            while(attacks != 0) {
+                int toSquare = BitBoardExtensions.PopLsb(ref attacks);
+
+                var from = new Position(fromSquare / 8, fromSquare % 8);
+                var to = new Position(toSquare / 8, toSquare % 8);
+                
+                moves.Add(new Move(from, to));
+            }
+        }
+    }
+
+    private void GenerateKingMoves(PieceColor color, List<Move> moves) {
+        var king = _pieces[(int)color, (int)PieceType.King];
+
+        while(king != 0) {
+            int fromSquare = BitBoardExtensions.PopLsb(ref king);
+            ulong attacks = KING_ATTACKS[fromSquare];
+            attacks &= ~(color == PieceColor.White ? _whitePieces : _blackPieces);
+            
+            while(attacks != 0) {
+                int toSquare = BitBoardExtensions.PopLsb(ref attacks);
+
+                var from = new Position(fromSquare / 8, fromSquare % 8);
+                var to = new Position(toSquare / 8, toSquare % 8);
+                
+                moves.Add(new Move(from, to));
+            }
+        }
+    }
+
     /// <summary>
     /// For debugging purposes, logs the board in a human readable format.
     /// </summary>
     public void LogBoard() {
-        // var occupiedSquares = _occupiedSquares;
+        var occupiedSquares = _occupiedSquares;
 
-        // Console.WriteLine("\n\nOccupied Squares:");
-        // LogSquare(occupiedSquares);
-
-        // Console.WriteLine("\n\nBlack Pieces:");
-        // LogSquare(_blackPieces);
-
-        // Console.WriteLine("\n\nBlack Pawn Pushes:");
-        // LogSquare(GetBlackPawnPushes());
-
-        // for(int i = 0; i < 64; i++) {
-        //     Console.WriteLine("\n\nKnight Attacks:");
-        //     var king = 1UL << i;
-
-        //     // Add knight as well (index)
-        //     var kingAttacks = KING_ATTACKS[i] | king;
-            
-        //     LogSquare(kingAttacks);
-        // }
-
-        Console.WriteLine("\n\n Rook mask for position 27:");
-        LogSquare(RookExtensions.GenerateRookMask(27));
-
-        ulong blocker = 1UL << 35;
-        blocker |= 1UL << 29;
-
-        Console.WriteLine("\n\nBlocker for position 27 (0UL <<  28 + 8):");
-        LogSquare(blocker);
-
-        // Test rook attacks
-        Console.WriteLine("\n\nRook attacks:");
-        LogSquare(GetRookAttacks(27, blocker));
-
-        Console.WriteLine("\n\n Bishop mask for position 27:");
-        LogSquare(BishopExtensions.GenerateBishopMask(27));
-
-        ulong blocker2 = 1UL << 36;
-
-        Console.WriteLine("\n\nBlocker for position 36 (0UL <<  28 + 8):");
-        LogSquare(blocker2);
-
-        Console.WriteLine("\n\n Bishop attacks for position 27 (should be free to go):");
-        LogSquare(GetBishopAttacks(27, blocker2));
-
-        // Console.WriteLine("\n\n Bishop attacks:");
-        // LogSquare(GetBishopAttacks(27, blocker));
+        Console.WriteLine("\n\nOccupied Squares:");
+        LogSquare(occupiedSquares);
     }
 
     private void LogSquare(ulong bitboard) {

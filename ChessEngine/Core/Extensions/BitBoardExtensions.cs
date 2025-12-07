@@ -1,5 +1,7 @@
 namespace Chess.Programming.Ago.Core.Extensions;
 
+using System.Numerics;
+
 public static class BitBoardExtensions {
     public static int ToBitPosition(this Position position) {
         return position.Row * 8 + position.Column;
@@ -52,5 +54,15 @@ public static class BitBoardExtensions {
     private static ulong RandomSparseUlong(Random rand) {
         // ANDing 3 randoms keeps only ~1/8 of bits → much better for magics!
         return RandomUlong(rand) & RandomUlong(rand) & RandomUlong(rand);
+    }
+
+    public static int PopLsb(ref ulong bitboard) {
+        int square = BitOperations.TrailingZeroCount(bitboard);
+        bitboard &= bitboard - 1;
+        return square;
+    }
+
+    public static ulong Shift(this ulong value, int amount) {
+        return amount > 0 ? value << amount : value >> -amount;
     }
 }
