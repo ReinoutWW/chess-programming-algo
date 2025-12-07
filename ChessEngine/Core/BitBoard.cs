@@ -168,7 +168,7 @@ public class BitBoard : IVisualizedBoard {
     /// <param name="move">The move to apply</param>
     /// <exception cref="InvalidOperationException">Thrown if there is no piece at the from position</exception>
     /// <exception cref="InvalidOperationException">Thrown if there no at the to from position</exception>
-    public void ApplyMove(Move move) {
+    public UndoMoveInfo ApplyMove(Move move) {
         var fromPosition = move.From.ToBitPosition();
         var toPosition = move.To.ToBitPosition();
 
@@ -185,6 +185,28 @@ public class BitBoard : IVisualizedBoard {
 
         RemovePiece(fromColor.Value, fromType.Value, fromPosition);
         PlacePiece(fromColor.Value, fromType.Value, toPosition);
+
+        var undoInfo = new UndoMoveInfo {
+            Move = move,
+            MovedColor = fromColor.Value,
+            MovedType = fromType.Value,
+            CapturedColor = toColor,
+            CapturedType = toType
+        };
+
+        return undoInfo;
+    }
+
+    public void UndoMove(UndoMoveInfo undoMoveInfo) {
+        var fromPosition = undoMoveInfo.Move.From.ToBitPosition();
+        var toPosition = undoMoveInfo.Move.To.ToBitPosition();
+        
+        PlacePiece(undoMoveInfo.MovedColor, undoMoveInfo.MovedType, fromPosition);
+        RemovePiece(undoMoveInfo.MovedColor, undoMoveInfo.MovedType, toPosition);
+
+        if(undoMoveInfo.CapturedColor != null && undoMoveInfo.CapturedType != null) {
+            PlacePiece(undoMoveInfo.CapturedColor.Value, undoMoveInfo.CapturedType.Value, toPosition);
+        }
     }
 
     public bool IsSquareAttacked(PieceColor color, Position position) {
@@ -237,7 +259,7 @@ public class BitBoard : IVisualizedBoard {
     private Position GetKingPosition(PieceColor color) {
         var king = _pieces[(int)color, (int)PieceType.King];
         var square = BitBoardExtensions.PopLsb(ref king);
-        
+
         return new Position(square / 8, square % 8);
     }
 
@@ -751,6 +773,14 @@ public class BitBoard : IVisualizedBoard {
 
         Console.WriteLine("\n\nOccupied Squares:");
         LogSquare(occupiedSquares);
+
+        Console.WriteLine("\n\nWhite Pieces:");
+        LogSquare(_whitePieces);
+
+        Console.WriteLine("\n\nBlack Pieces:");
+        LogSquare(_blackPieces);
+
+        Console.WriteLine("\n\n================================================");
     }
 
     private void LogSquare(ulong bitboard) {
