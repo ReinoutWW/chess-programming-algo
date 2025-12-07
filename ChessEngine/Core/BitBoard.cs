@@ -52,10 +52,19 @@ public class BitBoard : IVisualizedBoard {
     private static int[] ROOK_SHIFTS = new int[64];
     private static ulong[][] ROOK_ATTACKS = new ulong[64][];
 
+    private static ulong[] BISHOP_MASKS = new ulong[64];
+    private static ulong[] BISHOP_MAGICS = new ulong[64];
+    private static int[] BISHOP_SHIFTS = new int[64];
+    private static ulong[][] BISHOP_ATTACKS = new ulong[64][];
+
+    /// <summary>
+    /// Static precomputations for the bitboard.
+    /// </summary>
     static BitBoard() {
         PrecomputeKnightAttacks();
         PrecomputeKingAttacks();
         PrecomputeRookAttacks();
+        PrecomputeBishopAttacks();
     }
 
     public BitBoard() {
@@ -346,30 +355,89 @@ public class BitBoard : IVisualizedBoard {
         Console.WriteLine("Precomputing rook attacks...");
 
         for(int i = 0; i < 64; i++) {
-            ROOK_MASKS[i] = GenerateRookMask(i);
+            ROOK_MASKS[i] = RookExtensions.GenerateRookMask(i);
 
-            var blockers = GenerateRookBlockers(i);
+            var blockers = PieceExtensions.GeneratePieceBlockers(ROOK_MASKS[i]);
 
-            ulong[] attacks = new ulong[blockers.Length];
-
-            for(int j = 0; j < blockers.Length; j++) {
-                attacks[j] = CalculateRookAttacks(i, blockers[j]);
-            }
-
-            ROOK_MAGICS[i] = FindMagicNumber(i, blockers, attacks);
-
-            int bitCount = CountBits(ROOK_MASKS[i]);
-            ROOK_SHIFTS[i] = 64 - bitCount;
-            ROOK_ATTACKS[i] = new ulong[1 << bitCount];
-
-            for (int j = 0; j < blockers.Length; j++) {
-                int index = (int)((blockers[j] * ROOK_MAGICS[i]) >> ROOK_SHIFTS[i]);
-                ROOK_ATTACKS[i][index] = attacks[j];
-            }
+            GenerateRookAttacks(i, blockers);
 
             Console.WriteLine($"Finished precomputing rook attacks for square {i}...");
         }
         Console.WriteLine("--------------------------------");
+    }
+
+    private static void GenerateRookAttacks(int position, ulong[] blockers) {
+        ulong[] attacks = new ulong[blockers.Length];
+
+        for(int j = 0; j < blockers.Length; j++) {
+            attacks[j] = RookExtensions.CalculateRookAttacks(position, blockers[j]);
+        }
+
+        ROOK_MAGICS[position] = BitBoardExtensions.FindMagicNumber(ROOK_MASKS[position], blockers, attacks);
+
+        int bitCount = BitBoardExtensions.CountBits(ROOK_MASKS[position]);
+        ROOK_SHIFTS[position] = 64 - bitCount;
+        ROOK_ATTACKS[position] = new ulong[1 << bitCount];
+
+        for (int j = 0; j < blockers.Length; j++) {
+            int index = (int)((blockers[j] * ROOK_MAGICS[position]) >> ROOK_SHIFTS[position]);
+            ROOK_ATTACKS[position][index] = attacks[j];
+        }
+    }
+
+    private static void PrecomputeBishopAttacks() {
+        for(int i = 0; i < 64; i++) {
+            BISHOP_MASKS[i] = BishopExtensions.GenerateBishopMask(i);
+
+            var blockers = PieceExtensions.GeneratePieceBlockers(BISHOP_MASKS[i]);
+
+            GenerateBishopAttacks(i, blockers);
+
+            Console.WriteLine($"Finished precomputing bishop attacks for square {i}...");
+        }
+        Console.WriteLine("--------------------------------");
+    }
+
+    private static void GenerateBishopAttacks(int position, ulong[] blockers) {
+        ulong[] attacks = new ulong[blockers.Length];
+
+        for(int j = 0; j < blockers.Length; j++) {
+            attacks[j] = BishopExtensions.CalculateBishopAttacks(position, blockers[j]);
+        }
+
+        BISHOP_MAGICS[position] = BitBoardExtensions.FindMagicNumber(BISHOP_MASKS[position], blockers, attacks);
+
+        int bitCount = BitBoardExtensions.CountBits(BISHOP_MASKS[position]);
+        BISHOP_SHIFTS[position] = 64 - bitCount;
+        BISHOP_ATTACKS[position] = new ulong[1 << bitCount];
+
+        for (int j = 0; j < blockers.Length; j++) {
+            int index = (int)((blockers[j] * BISHOP_MAGICS[position]) >> BISHOP_SHIFTS[position]);
+            BISHOP_ATTACKS[position][index] = attacks[j];
+        }
+    }
+
+    /// <summary>
+    /// Gets the attacks for the bishop at the given position with the given blocker.
+    /// </summary>
+    /// <param name="position">The position to get the attacks for</param>
+    /// <param name="blocker">The blocker to calculate the attacks for</param>
+    /// <returns>A bitboard of all squares the bishop can attack</returns>
+    private static ulong GetBishopAttacks(int position, ulong blocker) {
+        var relevantBlocker = blocker & BISHOP_MASKS[position];
+
+        int index = (int)((relevantBlocker * BISHOP_MAGICS[position]) >> BISHOP_SHIFTS[position]);
+        return BISHOP_ATTACKS[position][index];
+    }
+
+    /// <summary>
+    /// Gets the attacks for the queen at the given position with the given blocker.
+    /// </summary>
+    /// <param name="position">The position to get the attacks for</param>
+    /// <param name="blocker">The blocker to calculate the attacks for</param>
+    /// <returns>A bitboard of all squares the queen can attack</returns>
+    private static ulong GetQueenAttacks(int position, ulong blocker) {
+        return GetBishopAttacks(position, blocker) | GetRookAttacks(position, blocker);
     }
 
     /// <summary>
@@ -381,189 +449,39 @@ public class BitBoard : IVisualizedBoard {
     /// <param name="blocker">The blocker to calculate the index for</param>
     /// <returns>A bitboard of all squares the rook can attack</returns>
     private static ulong GetRookAttacks(int square, ulong blocker) {
-        int index = (int)((blocker * ROOK_MAGICS[square]) >> ROOK_SHIFTS[square]);
+        var relevantBlocker = blocker & ROOK_MASKS[square];
+
+        int index = (int)((relevantBlocker * ROOK_MAGICS[square]) >> ROOK_SHIFTS[square]);
         return ROOK_ATTACKS[square][index];
-    }
-
-    private static ulong FindMagicNumber(int square, ulong[] blockers, ulong[] attacks) {
-        int bitCount = CountBits(ROOK_MASKS[square]);
-        int tableSize = 1 << bitCount;
-        var random = new Random();
-        
-        while (true) {
-            ulong candidate = RandomSparseUlong(random);
-            
-            ulong[] table = new ulong[tableSize];
-            bool works = true;
-            
-            for (int i = 0; i < blockers.Length; i++) {
-
-                int index = (int)((blockers[i] * candidate) >> (64 - bitCount));
-                
-                if (table[index] == 0) {
-                    table[index] = attacks[i];
-                } else if (table[index] != attacks[i]) {
-                    works = false;  // Collision!
-                    break;
-                }
-            }
-            
-            if (works) return candidate;
-        }
-    }
-
-    private static ulong RandomUlong(Random rand) {
-        byte[] buf = new byte[8];
-        rand.NextBytes(buf);
-        return BitConverter.ToUInt64(buf, 0);
-    }
-
-    private static ulong RandomSparseUlong(Random rand) {
-        // ANDing 3 randoms keeps only ~1/8 of bits → much better for magics!
-        return RandomUlong(rand) & RandomUlong(rand) & RandomUlong(rand);
-    }
-
-    /// <summary>
-    /// Calculates the attacks for the rook at the given position with the given blocker.
-    /// </summary>
-    /// <param name="position">The position to calculate the attacks for</param>
-    /// <param name="blocker">The blocker to calculate the attacks for</param>
-    /// <returns>A bitboard of all squares the rook can attack</returns>
-    private static ulong CalculateRookAttacks(int position, ulong blocker) {
-        var attacks = 0UL;
-
-        int rank = position / 8;
-        int file = position % 8;
-
-        for (int r = rank + 1; r <= 7; r++) {
-            int pos = r * 8 + file;
-            attacks |= 1UL << pos;
-            if ((blocker & (1UL << pos)) != 0) break;
-        }
-
-        for (int r = rank - 1; r >= 0; r--) {
-            int pos = r * 8 + file;
-            attacks |= 1UL << pos;
-            if ((blocker & (1UL << pos)) != 0) break;
-        }
-
-        for (int f = file + 1; f <= 7; f++) {
-            int pos = rank * 8 + f;
-            attacks |= 1UL << pos;
-            if ((blocker & (1UL << pos)) != 0) break;
-        }
-
-        for (int f = file - 1; f >= 0; f--) {
-            int pos = rank * 8 + f;
-            attacks |= 1UL << pos;
-            if ((blocker & (1UL << pos)) != 0) break;
-        }
-
-        return attacks;
-    }
-
-    /// <summary>
-    /// Generates a mask for the rook at the given position.
-    /// This is used to generate the attacks for the rook.
-    /// </summary>
-    /// <param name="position">The position to generate the mask for</param>
-    /// <returns>A bitboard of all squares the rook can attack</returns>
-    private static ulong GenerateRookMask(int position) {
-        var mask = 0UL;
-        int rank = position / 8;
-        int file = position % 8;
-
-        for (int r = rank + 1; r < 7; r++) {
-            mask |= 1UL << (r * 8 + file);
-        }
-
-        for (int r = rank - 1; r > 0; r--) {
-            mask |= 1UL << (r * 8 + file);
-        }
-
-        for (int f = file + 1; f < 7; f++) {
-            mask |= 1UL << (rank * 8 + f);
-        }
-
-        for (int f = file - 1; f > 0; f--) {
-            mask |= 1UL << (rank * 8 + f);
-        }
-        
-        return mask;
-    }
-
-    /// <summary>
-    /// Generate all possible blockers for the rook at the given position.
-    /// We use binary to calculate the amount of combinations of blockers.
-    /// </summary>
-    /// <param name="position">The position to generate the blockers for</param>
-    /// <returns>An array of all possible blockers</returns>
-    private static ulong[] GenerateRookBlockers(int position) {
-        var mask = ROOK_MASKS[position];
-
-        int bitCount = CountBits(mask);
-        int numCombinations = 1 << bitCount;  // 2^bitCount
-        
-        int[] bitPositions = new int[bitCount];
-
-        int idx = 0;
-        for (int i = 0; i < 64; i++) {
-            if ((mask & (1UL << i)) != 0) {
-                bitPositions[idx] = i;
-                idx++;
-            }
-        }
-
-        ulong[] blockers = new ulong[numCombinations];
-        for (int index = 0; index < numCombinations; index++) {
-            ulong blocker = 0;
-            for (int i = 0; i < bitCount; i++) {
-                if ((index & (1 << i)) != 0) {
-                    blocker |= 1UL << bitPositions[i];
-                }
-            }
-            blockers[index] = blocker;
-        }
-        
-        return blockers;
-    }
-
-    private static int CountBits(ulong mask) {
-        int count = 0;
-        while(mask != 0) {
-            count += (int)(mask & 1);
-            mask >>= 1;
-        }
-        return count;
     }
 
     /// <summary>
     /// For debugging purposes, logs the board in a human readable format.
     /// </summary>
     public void LogBoard() {
-        var occupiedSquares = _occupiedSquares;
+        // var occupiedSquares = _occupiedSquares;
 
-        Console.WriteLine("\n\nOccupied Squares:");
-        LogSquare(occupiedSquares);
+        // Console.WriteLine("\n\nOccupied Squares:");
+        // LogSquare(occupiedSquares);
 
-        Console.WriteLine("\n\nBlack Pieces:");
-        LogSquare(_blackPieces);
+        // Console.WriteLine("\n\nBlack Pieces:");
+        // LogSquare(_blackPieces);
 
-        Console.WriteLine("\n\nBlack Pawn Pushes:");
-        LogSquare(GetBlackPawnPushes());
+        // Console.WriteLine("\n\nBlack Pawn Pushes:");
+        // LogSquare(GetBlackPawnPushes());
 
-        for(int i = 0; i < 64; i++) {
-            Console.WriteLine("\n\nKnight Attacks:");
-            var king = 1UL << i;
+        // for(int i = 0; i < 64; i++) {
+        //     Console.WriteLine("\n\nKnight Attacks:");
+        //     var king = 1UL << i;
 
-            // Add knight as well (index)
-            var kingAttacks = KING_ATTACKS[i] | king;
+        //     // Add knight as well (index)
+        //     var kingAttacks = KING_ATTACKS[i] | king;
             
-            LogSquare(kingAttacks);
-        }
+        //     LogSquare(kingAttacks);
+        // }
 
         Console.WriteLine("\n\n Rook mask for position 27:");
-        LogSquare(GenerateRookMask(27));
+        LogSquare(RookExtensions.GenerateRookMask(27));
 
         ulong blocker = 1UL << 35;
         blocker |= 1UL << 29;
@@ -574,6 +492,20 @@ public class BitBoard : IVisualizedBoard {
         // Test rook attacks
         Console.WriteLine("\n\nRook attacks:");
         LogSquare(GetRookAttacks(27, blocker));
+
+        Console.WriteLine("\n\n Bishop mask for position 27:");
+        LogSquare(BishopExtensions.GenerateBishopMask(27));
+
+        ulong blocker2 = 1UL << 36;
+
+        Console.WriteLine("\n\nBlocker for position 36 (0UL <<  28 + 8):");
+        LogSquare(blocker2);
+
+        Console.WriteLine("\n\n Bishop attacks for position 27 (should be free to go):");
+        LogSquare(GetBishopAttacks(27, blocker2));
+
+        // Console.WriteLine("\n\n Bishop attacks:");
+        // LogSquare(GetBishopAttacks(27, blocker));
     }
 
     private void LogSquare(ulong bitboard) {
