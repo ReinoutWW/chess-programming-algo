@@ -36,6 +36,14 @@ public class BitBoardGame : IGame {
 
     public async Task Start() {
         Visualize();
+
+        if(GetCurrentPlayer().IsAI()) {
+            await RunNextMoveIfAI();
+        }
+    }
+
+    public List<(Piece, Position)> GetPiecesForColor(PieceColor color) {
+        return board.GetPiecesForColor(color);
     }
 
     public void Visualize() {

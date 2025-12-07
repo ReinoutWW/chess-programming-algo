@@ -135,6 +135,10 @@ public class Game : IGame {
         return board.GetCapturedPieces();
     }
 
+    public List<(Piece, Position)> GetPiecesForColor(PieceColor color) {
+        return board.GetPiecesForColor(color);
+    }
+
     private void ValidateIfGameIsOver() {
 
         if(_movesWithoutCapture >= MAX_MOVES_WITHOUT_CAPTURE) {

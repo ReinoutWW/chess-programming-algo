@@ -9,6 +9,7 @@ public interface IBoard {
     bool IsInCheck(PieceColor color);
     IBoard Clone();
     List<Move> GenerateMoves(PieceColor color);
+    List<(Piece, Position)> GetPiecesForColor(PieceColor color);
     Piece[,] GetPieces();
     Piece? GetPieceAtPosition(Position position);
 }

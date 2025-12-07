@@ -84,7 +84,7 @@
                         @for(int i = 0; i < 8; i++) {
                             <div class="board-column">
                                 @for(int j = 0; j < 8; j++) {
-                                    var row = i;
+                                    var row = 7 - i;
                                     var column = j;
                                     var position = new Position(row, column);
                                     var promotionMovesToThisSquare = validMovesForselectedCellPosition

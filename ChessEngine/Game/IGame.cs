@@ -24,9 +24,9 @@ public interface IGame {
 
     List<Piece> GetCapturedPieces();
 
-    bool IsFinished();
+    List<(Piece, Position)> GetPiecesForColor(PieceColor color);
 
-    Board GetBoard();
+    bool IsFinished();
 
     bool IsPawnPromotionMove(Move move);
 

@@ -807,6 +807,16 @@ public class BitBoard : IVisualizedBoard {
         return pieces;
     }
 
+    public List<(Piece, Position)> GetPiecesForColor(PieceColor color) {
+        var pieces = new List<(Piece, Position)>();
+        for(int i = 0; i < 8; i++) {
+            for(int j = 0; j < 8; j++) {
+                var piece = GetPieceAtPosition(new Position(i, j));
+            }
+        }
+        return pieces;
+    }
+
     public Piece? GetPieceAtPosition(Position position) {
          var (color, type) = GetPieceAtPosition(position.ToBitPosition());
     

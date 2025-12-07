@@ -14,7 +14,7 @@ public class MobilityEvaluation : IEvaluationFunction {
     }
 
     public int MobilityForColor(IGame game, PieceColor color) {
-        var allPieces = game.GetBoard().GetPiecesForColor(color);
+        var allPieces = game.GetPiecesForColor(color);
         var mobility = 0;
         foreach(var piece in allPieces) {
             var validMoves = game.GetValidMovesForPosition(piece.Item2);
