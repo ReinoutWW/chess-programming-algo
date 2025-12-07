@@ -1,4 +1,5 @@
 ﻿using Chess.Programming.Ago.Core;
+using Chess.Programming.Ago.Game;
 
 int StringToBitPosition(string position) {
     var column = (int)Enum.Parse(typeof(Columns), position[0].ToString().ToUpper());
@@ -24,15 +25,9 @@ string MoveToPositionString(Move move) {
    return $"{fromString} -> {toString}";
 }
 
-var board = new BitBoard();
-board.LogBoard();  // Initial position
-
-var move = new Move(new Position(1, 4), new Position(7, 4));  // e2 -> e4
-var undoInfo = board.ApplyMove(move);
-board.LogBoard();  // Pawn moved
-
-board.UndoMove(undoInfo);
-board.LogBoard();  // Should be back to initial!
+var game = new BitBoardGame();
+var legalMoves = game.GetAllValidMovesForColor(PieceColor.White);
+Console.WriteLine($"White has {legalMoves.Count} legal moves");
 
 enum Columns {
     A,

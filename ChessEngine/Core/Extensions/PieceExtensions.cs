@@ -1,5 +1,8 @@
 namespace Chess.Programming.Ago.Core.Extensions;
 
+using Chess.Programming.Ago.Pieces;
+using Chess.Programming.Ago.Core;
+
 public static class PieceExtensions {
     public static ulong[] GeneratePieceBlockers(ulong mask) {
         int bitCount = BitBoardExtensions.CountBits(mask);
@@ -27,5 +30,17 @@ public static class PieceExtensions {
         }
         
         return blockers;
+    }
+
+    public static Piece CreatePiece(this PieceColor color, PieceType type) {
+        return type switch {
+            PieceType.Pawn => new Pawn(color),
+            PieceType.Knight => new Knight(color),
+            PieceType.Bishop => new Bishop(color),
+            PieceType.Rook => new Rook(color),
+            PieceType.Queen => new Queen(color),
+            PieceType.King => new King(color),
+            _ => throw new InvalidOperationException("Invalid piece type"),
+        };
     }
 }

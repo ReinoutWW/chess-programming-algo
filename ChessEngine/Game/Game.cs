@@ -131,6 +131,10 @@ public class Game : IGame {
         return validMoves;
     }
 
+    public List<Piece> GetCapturedPieces() {
+        return board.GetCapturedPieces();
+    }
+
     private void ValidateIfGameIsOver() {
 
         if(_movesWithoutCapture >= MAX_MOVES_WITHOUT_CAPTURE) {
@@ -182,6 +186,10 @@ public class Game : IGame {
 
     public void Visualize() {
         Visualizer?.Visualize(board);
+    }
+
+    public Piece? GetPieceAtPosition(Position position) {
+        return board.GetPieceAtPosition(position);
     }
 
     public List<Move> GetValidMovesForPosition(Position position) {

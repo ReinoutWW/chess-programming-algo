@@ -1,12 +1,11 @@
+namespace Chess.Programming.Ago.Game;
+
+using Chess.Programming.Ago.Pieces;
 using Chess.Programming.Ago.Core;
 
-namespace Chess.Programming.Ago.Game;
 
 public interface IGame {
     Func<Task>? NextMoveHandler { get; set; }
-
-    IGameVisualizer Visualizer { get; }
-
     IPlayer? Winner { get; }
 
     public bool IsChecked(PieceColor color);
@@ -20,6 +19,10 @@ public interface IGame {
     IPlayer GetCurrentPlayer();
 
     List<Move> GetValidMovesForPosition(Position position);
+
+    Piece? GetPieceAtPosition(Position position);
+
+    List<Piece> GetCapturedPieces();
 
     bool IsFinished();
 

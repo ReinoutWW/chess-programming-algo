@@ -774,12 +774,6 @@ public class BitBoard : IVisualizedBoard {
         Console.WriteLine("\n\nOccupied Squares:");
         LogSquare(occupiedSquares);
 
-        Console.WriteLine("\n\nWhite Pieces:");
-        LogSquare(_whitePieces);
-
-        Console.WriteLine("\n\nBlack Pieces:");
-        LogSquare(_blackPieces);
-
         Console.WriteLine("\n\n================================================");
     }
 
@@ -795,5 +789,39 @@ public class BitBoard : IVisualizedBoard {
         }
         Console.WriteLine("   -------------------------");
         Console.WriteLine("    A  B  C  D  E  F  G  H");
+    }
+
+    public Piece[,] GetPieces() {
+        var pieces = new Piece[8, 8];
+
+        for(int i = 7; i >= 0; i--) {
+            for(int j = 7; j >= 0; j--) {
+                var piece = GetPieceAtPosition(new Position(i, j));
+
+                if(piece != null) {
+                    pieces[i, j] = piece;
+                }
+            }
+        }
+
+        return pieces;
+    }
+
+    public Piece? GetPieceAtPosition(Position position) {
+         var (color, type) = GetPieceAtPosition(position.ToBitPosition());
+    
+        if (color == null || type == null) 
+            return null;
+        
+        return PieceExtensions.CreatePiece(color.Value, type.Value);
+    }
+
+    public IBoard Clone() {
+        return new BitBoard {
+            _pieces = (ulong[,])_pieces.Clone(),
+            _occupiedSquares = _occupiedSquares,
+            _whitePieces = _whitePieces,
+            _blackPieces = _blackPieces,
+        };
     }
 }

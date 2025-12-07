@@ -1,6 +1,8 @@
 namespace Chess.Programming.Ago.Game;
 
 using Chess.Programming.Ago.Core;
+using Chess.Programming.Ago.Pieces;
+using Chess.Programming.Ago.Core.Extensions;
 
 public class BitBoardGame : IGame {
     public BitBoardGame(IPlayer whitePlayer, IPlayer blackPlayer, int _delayPerMoveInMilliseconds = 100) {
@@ -8,41 +10,102 @@ public class BitBoardGame : IGame {
         this.blackPlayer = blackPlayer;
         this._delayPerMoveInMilliseconds = _delayPerMoveInMilliseconds;
     }
+
+    private const int MAX_MOVES_WITHOUT_CAPTURE = 50;
+    private int _movesWithoutCapture = 0;
+    private bool IsGameActive = true;
+    public bool IsSimulated { get; private set; } = false;
     private PieceColor currentColor = PieceColor.White;
     private readonly IPlayer whitePlayer;
     private readonly IPlayer blackPlayer;
     private int _delayPerMoveInMilliseconds = 100;
     private string starterPosition = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
     public Func<Task>? NextMoveHandler { get; set; }
-    public IGameVisualizer Visualizer { get; set; } = new GameVisualizer();
+    public BitBoardGameVisualizer Visualizer { get; set; } = new BitBoardGameVisualizer();
     public IPlayer? Winner { get; private set; } = null;
-    private Stack<(Move, UndoMoveInfo)> _moveHistory = new();
+    private Stack<(Move move, UndoMoveInfo undoMoveInfo)> _moveHistory = new();
 
     public bool IsChecked(PieceColor color) {
         return board.IsInCheck(color);
     }
-    private BitBoard board = new BitBoard();
+    private IVisualizedBoard board = new BitBoard();
 
     public BitBoardGame() {
         this.board = new BitBoard();
     }
 
     public async Task Start() {
-        await Task.CompletedTask;
+        Visualize();
     }
 
     public void Visualize() {
-        Console.WriteLine(board.ToString());
+        Visualizer.Visualize(board);
     }
 
     public async Task DoMove(Move move) {
         var undoMoveInfo = board.ApplyMove(move);
         
         _moveHistory.Push((move, undoMoveInfo));
+
+        if(NextMoveHandler != null) {
+            await NextMoveHandler();
+        }
+
+        if(undoMoveInfo.CapturedColor != null || undoMoveInfo.MovedType == PieceType.Pawn) {
+            _movesWithoutCapture = 0;
+        } else {
+            _movesWithoutCapture++;
+        }
+
+        Visualize();
+
+        await NextTurn();
+    }
+
+    private async Task NextTurn() {
+        currentColor = 
+                currentColor == PieceColor.White 
+                    ? PieceColor.Black 
+                    : PieceColor.White;
+
+        ValidateIfGameIsOver();
+
+        if(IsFinished()) {
+            return;
+        }
+
+        await RunNextMoveIfAI();
+    }
+
+    private async Task RunNextMoveIfAI() {
+        if(GetCurrentPlayer().IsAI() && !IsSimulated) {
+            await Task.Delay(_delayPerMoveInMilliseconds);
+
+            var move = await GetCurrentPlayer().GetMove(this);
+            await DoMove(move);
+        }
+    }
+
+    private void ValidateIfGameIsOver() {
+        if(_movesWithoutCapture >= MAX_MOVES_WITHOUT_CAPTURE) {
+            Winner = null;
+            IsGameActive = false;
+            return;
+        }
+
+        if(!GetAllValidMovesForColor(currentColor).Any()) {
+            if(IsChecked(currentColor)) {
+                Winner = currentColor == PieceColor.White ? blackPlayer : whitePlayer;
+                IsGameActive = false;
+            } else {
+                Winner = null;
+                IsGameActive = false;
+            }
+        }
     }
 
     public bool IsValidMove(Move move) {
-        throw new NotImplementedException();
+        return GetValidMovesForPosition(move.From).Any(m => m.To == move.To);
     }
 
     public IPlayer GetCurrentPlayer() {
@@ -50,11 +113,12 @@ public class BitBoardGame : IGame {
     }
 
     public List<Move> GetValidMovesForPosition(Position position) {
-        throw new NotImplementedException();
+        var validMoves = GetAllValidMovesForColor(currentColor);
+        return validMoves.Where(m => m.From == position).ToList();
     }
 
     public bool IsFinished() {
-        return false;
+        return !IsGameActive;
     }
 
     public Board GetBoard() {
@@ -62,23 +126,55 @@ public class BitBoardGame : IGame {
     }
 
     public bool IsPawnPromotionMove(Move move) {
-        throw new NotImplementedException();
+        return false;
     }
 
     public List<Move> GetAllValidMovesForColor(PieceColor color) {
-        throw new NotImplementedException();
+        var pseudoLegal = board.GenerateMoves(color);
+        var legal = new List<Move>();
+        
+        foreach (var move in pseudoLegal) {
+            var undoInfo = board.ApplyMove(move);
+            
+            if (!board.IsInCheck(color)) {
+                legal.Add(move);
+            }
+            
+            board.UndoMove(undoInfo);
+        }
+        
+        return legal;
     }
 
     public string GetGameEndReason() {
-        return string.Empty;
+        return GameEndReason.None.GetDescription();
     }
 
     public bool IsDraw() {
         return false;
     }
 
+    public List<Piece> GetCapturedPieces() {
+        return _moveHistory
+            .Where(m => m.undoMoveInfo.CapturedColor != null 
+                    && m.undoMoveInfo.CapturedType != null)
+            .Select(m => PieceExtensions.CreatePiece(
+                m.undoMoveInfo.CapturedColor!.Value, 
+                m.undoMoveInfo.CapturedType!.Value))
+            .ToList();
+    }
+
+    public Piece? GetPieceAtPosition(Position position) {
+        return board.GetPieceAtPosition(position);
+    }
+
     public Move? GetLastMove() {
-        return null;
+
+        if(_moveHistory.Count == 0) {
+            return null;
+        }
+
+        return _moveHistory.Peek().move;
     }
 
     public void LoadForsythEdwardsNotation(string notation) {
@@ -86,6 +182,14 @@ public class BitBoardGame : IGame {
     }
 
     public IGame Clone(bool simulated = false) {
-        throw new NotImplementedException();
+        return new BitBoardGame(whitePlayer, blackPlayer, _delayPerMoveInMilliseconds) {
+            board = (IVisualizedBoard)board.Clone(),
+            currentColor = currentColor,
+            _moveHistory = new Stack<(Move move, UndoMoveInfo undoMoveInfo)>(_moveHistory),
+            Winner = Winner,
+            NextMoveHandler = NextMoveHandler,
+            Visualizer = Visualizer,
+            IsSimulated = simulated,
+        };
     }
 }

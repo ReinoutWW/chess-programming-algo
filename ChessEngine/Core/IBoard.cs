@@ -1,3 +1,5 @@
+using Chess.Programming.Ago.Pieces;
+
 namespace Chess.Programming.Ago.Core;
 
 public interface IBoard {
@@ -5,4 +7,8 @@ public interface IBoard {
     void UndoMove(UndoMoveInfo undoMoveInfo);
     bool IsSquareAttacked(PieceColor color, Position position);
     bool IsInCheck(PieceColor color);
+    IBoard Clone();
+    List<Move> GenerateMoves(PieceColor color);
+    Piece[,] GetPieces();
+    Piece? GetPieceAtPosition(Position position);
 }
