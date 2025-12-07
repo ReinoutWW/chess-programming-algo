@@ -10,4 +10,11 @@ public struct UndoMoveInfo {
     
     public PieceType? CapturedType { get; set; }
     public PieceColor? CapturedColor { get; set; }
+    
+    // Castling state before the move (for undo)
+    public bool WhiteKingSideCastle { get; set; }
+    public bool WhiteQueenSideCastle { get; set; }
+    public bool BlackKingSideCastle { get; set; }
+    public bool BlackQueenSideCastle { get; set; }
+    public bool WasCastling { get; set; }
 }

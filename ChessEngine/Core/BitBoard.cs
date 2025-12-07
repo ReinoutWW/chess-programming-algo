@@ -29,6 +29,12 @@ public class BitBoard : IVisualizedBoard {
     private ulong _whitePieces;
     private ulong _blackPieces;
 
+    // Castling rights
+    private bool _whiteKingSideCastle = true;
+    private bool _whiteQueenSideCastle = true;
+    private bool _blackKingSideCastle = true;
+    private bool _blackQueenSideCastle = true;
+
     private const ulong NOT_A_FILE = 0xFEFEFEFEFEFEFEFE;
     private const ulong NOT_B_FILE = 0xFDFDFDFDFDFDFDFD;
     private const ulong NOT_G_FILE = 0xBFBFBFBFBFBFBFBF;
@@ -179,6 +185,20 @@ public class BitBoard : IVisualizedBoard {
             throw new InvalidOperationException($"No piece at position {fromPosition}");
         }
 
+        // Store castling rights before the move
+        var undoInfo = new UndoMoveInfo {
+            Move = move,
+            MovedColor = fromColor.Value,
+            MovedType = fromType.Value,
+            CapturedColor = toColor,
+            CapturedType = toType,
+            WhiteKingSideCastle = _whiteKingSideCastle,
+            WhiteQueenSideCastle = _whiteQueenSideCastle,
+            BlackKingSideCastle = _blackKingSideCastle,
+            BlackQueenSideCastle = _blackQueenSideCastle,
+            WasCastling = false
+        };
+
         if(toColor != null && toType != null) {
             RemovePiece(toColor.Value, toType.Value, toPosition);
         }
@@ -186,13 +206,48 @@ public class BitBoard : IVisualizedBoard {
         RemovePiece(fromColor.Value, fromType.Value, fromPosition);
         PlacePiece(fromColor.Value, fromType.Value, toPosition);
 
-        var undoInfo = new UndoMoveInfo {
-            Move = move,
-            MovedColor = fromColor.Value,
-            MovedType = fromType.Value,
-            CapturedColor = toColor,
-            CapturedType = toType
-        };
+        // Handle castling - king moves 2 squares
+        if(fromType == PieceType.King && Math.Abs(move.To.Column - move.From.Column) == 2) {
+            undoInfo.WasCastling = true;
+            int rookFromCol = move.To.Column > move.From.Column ? 7 : 0; // King side or queen side
+            int rookToCol = move.To.Column > move.From.Column ? 5 : 3;
+            int row = fromColor == PieceColor.White ? 0 : 7;
+            
+            int rookFrom = row * 8 + rookFromCol;
+            int rookTo = row * 8 + rookToCol;
+            
+            RemovePiece(fromColor.Value, PieceType.Rook, rookFrom);
+            PlacePiece(fromColor.Value, PieceType.Rook, rookTo);
+        }
+
+        // Update castling rights
+        if(fromType == PieceType.King) {
+            if(fromColor == PieceColor.White) {
+                _whiteKingSideCastle = false;
+                _whiteQueenSideCastle = false;
+            } else {
+                _blackKingSideCastle = false;
+                _blackQueenSideCastle = false;
+            }
+        }
+        
+        if(fromType == PieceType.Rook) {
+            if(fromColor == PieceColor.White) {
+                if(fromPosition == 0) _whiteQueenSideCastle = false; // a1
+                if(fromPosition == 7) _whiteKingSideCastle = false;  // h1
+            } else {
+                if(fromPosition == 56) _blackQueenSideCastle = false; // a8
+                if(fromPosition == 63) _blackKingSideCastle = false;  // h8
+            }
+        }
+        
+        // If a rook is captured, revoke that side's castling rights
+        if(toType == PieceType.Rook) {
+            if(toPosition == 0) _whiteQueenSideCastle = false;
+            if(toPosition == 7) _whiteKingSideCastle = false;
+            if(toPosition == 56) _blackQueenSideCastle = false;
+            if(toPosition == 63) _blackKingSideCastle = false;
+        }
 
         return undoInfo;
     }
@@ -207,6 +262,25 @@ public class BitBoard : IVisualizedBoard {
         if(undoMoveInfo.CapturedColor != null && undoMoveInfo.CapturedType != null) {
             PlacePiece(undoMoveInfo.CapturedColor.Value, undoMoveInfo.CapturedType.Value, toPosition);
         }
+
+        // Undo castling rook movement
+        if(undoMoveInfo.WasCastling) {
+            int rookFromCol = undoMoveInfo.Move.To.Column > undoMoveInfo.Move.From.Column ? 7 : 0;
+            int rookToCol = undoMoveInfo.Move.To.Column > undoMoveInfo.Move.From.Column ? 5 : 3;
+            int row = undoMoveInfo.MovedColor == PieceColor.White ? 0 : 7;
+            
+            int rookFrom = row * 8 + rookFromCol;
+            int rookTo = row * 8 + rookToCol;
+            
+            RemovePiece(undoMoveInfo.MovedColor, PieceType.Rook, rookTo);
+            PlacePiece(undoMoveInfo.MovedColor, PieceType.Rook, rookFrom);
+        }
+
+        // Restore castling rights
+        _whiteKingSideCastle = undoMoveInfo.WhiteKingSideCastle;
+        _whiteQueenSideCastle = undoMoveInfo.WhiteQueenSideCastle;
+        _blackKingSideCastle = undoMoveInfo.BlackKingSideCastle;
+        _blackQueenSideCastle = undoMoveInfo.BlackQueenSideCastle;
     }
 
     public bool IsSquareAttacked(PieceColor color, Position position) {
@@ -659,7 +733,9 @@ public class BitBoard : IVisualizedBoard {
 
     private void GetPawnDoublePush(PieceColor color, ulong pawns, ulong emptySquares, List<Move> moves) {
         var shiftDirection = color == PieceColor.White ? 16 : -16;
-        var doublePush = (pawns.Shift(shiftDirection)) & emptySquares & (color == PieceColor.White ? RANK_4 : RANK_5);
+        var singleShift = color == PieceColor.White ? 8 : -8;
+        var singlePush = pawns.Shift(singleShift) & emptySquares;
+        var doublePush = singlePush.Shift(singleShift) & emptySquares & (color == PieceColor.White ? RANK_4 : RANK_5);
 
         while(doublePush != 0) {
             int toSquare = BitBoardExtensions.PopLsb(ref doublePush);
@@ -748,6 +824,7 @@ public class BitBoard : IVisualizedBoard {
 
     private void GenerateKingMoves(PieceColor color, List<Move> moves) {
         var king = _pieces[(int)color, (int)PieceType.King];
+        var kingCopy = king;
 
         while(king != 0) {
             int fromSquare = BitBoardExtensions.PopLsb(ref king);
@@ -761,6 +838,67 @@ public class BitBoard : IVisualizedBoard {
                 var to = new Position(toSquare / 8, toSquare % 8);
                 
                 moves.Add(new Move(from, to));
+            }
+        }
+
+        // Generate castling moves
+        GenerateCastlingMoves(color, kingCopy, moves);
+    }
+
+    private void GenerateCastlingMoves(PieceColor color, ulong king, List<Move> moves) {
+        if(king == 0) return;
+        
+        int kingSquare = BitBoardExtensions.PopLsb(ref king);
+        var kingPos = new Position(kingSquare / 8, kingSquare % 8);
+        
+        // Don't castle if in check
+        if(IsSquareAttacked(color, kingPos)) return;
+
+        if(color == PieceColor.White) {
+            // King side castling (e1 to g1)
+            if(_whiteKingSideCastle) {
+                // Check squares f1(5) and g1(6) are empty
+                if(!IsBitSet(_occupiedSquares, 5) && !IsBitSet(_occupiedSquares, 6)) {
+                    // Check squares e1, f1, g1 are not attacked
+                    if(!IsSquareAttacked(color, new Position(0, 5)) &&
+                       !IsSquareAttacked(color, new Position(0, 6))) {
+                        moves.Add(new Move(new Position(0, 4), new Position(0, 6)));
+                    }
+                }
+            }
+            // Queen side castling (e1 to c1)
+            if(_whiteQueenSideCastle) {
+                // Check squares b1(1), c1(2), d1(3) are empty
+                if(!IsBitSet(_occupiedSquares, 1) && !IsBitSet(_occupiedSquares, 2) && !IsBitSet(_occupiedSquares, 3)) {
+                    // Check squares e1, d1, c1 are not attacked
+                    if(!IsSquareAttacked(color, new Position(0, 3)) &&
+                       !IsSquareAttacked(color, new Position(0, 2))) {
+                        moves.Add(new Move(new Position(0, 4), new Position(0, 2)));
+                    }
+                }
+            }
+        } else {
+            // King side castling (e8 to g8)
+            if(_blackKingSideCastle) {
+                // Check squares f8(61) and g8(62) are empty
+                if(!IsBitSet(_occupiedSquares, 61) && !IsBitSet(_occupiedSquares, 62)) {
+                    // Check squares e8, f8, g8 are not attacked
+                    if(!IsSquareAttacked(color, new Position(7, 5)) &&
+                       !IsSquareAttacked(color, new Position(7, 6))) {
+                        moves.Add(new Move(new Position(7, 4), new Position(7, 6)));
+                    }
+                }
+            }
+            // Queen side castling (e8 to c8)
+            if(_blackQueenSideCastle) {
+                // Check squares b8(57), c8(58), d8(59) are empty
+                if(!IsBitSet(_occupiedSquares, 57) && !IsBitSet(_occupiedSquares, 58) && !IsBitSet(_occupiedSquares, 59)) {
+                    // Check squares e8, d8, c8 are not attacked
+                    if(!IsSquareAttacked(color, new Position(7, 3)) &&
+                       !IsSquareAttacked(color, new Position(7, 2))) {
+                        moves.Add(new Move(new Position(7, 4), new Position(7, 2)));
+                    }
+                }
             }
         }
     }
@@ -836,6 +974,68 @@ public class BitBoard : IVisualizedBoard {
             _occupiedSquares = _occupiedSquares,
             _whitePieces = _whitePieces,
             _blackPieces = _blackPieces,
+            _whiteKingSideCastle = _whiteKingSideCastle,
+            _whiteQueenSideCastle = _whiteQueenSideCastle,
+            _blackKingSideCastle = _blackKingSideCastle,
+            _blackQueenSideCastle = _blackQueenSideCastle,
+        };
+    }
+
+    public void LoadForsythEdwardsNotation(string notation) {
+        // Clear all bitboards
+        for(int color = 0; color < 2; color++) {
+            for(int piece = 0; piece < 6; piece++) {
+                _pieces[color, piece] = 0;
+            }
+        }
+        _occupiedSquares = 0;
+        _whitePieces = 0;
+        _blackPieces = 0;
+
+        var parts = notation.Split(' ');
+        var boardPart = parts[0];
+        var rows = boardPart.Split('/');
+        var castlingRights = parts.Length > 2 ? parts[2] : "KQkq";
+
+        // Parse board position (FEN is from rank 8 to rank 1)
+        for(int fenRow = 0; fenRow < 8; fenRow++) {
+            var row = rows[fenRow];
+            int column = 0;
+
+            foreach(char c in row) {
+                if(char.IsDigit(c)) {
+                    column += int.Parse(c.ToString());
+                } else {
+                    var color = char.IsUpper(c) ? PieceColor.White : PieceColor.Black;
+                    var pieceType = CharToPieceType(char.ToLower(c));
+                    
+                    // Convert FEN position to bitboard position
+                    // FEN row 0 = rank 8, row 7 = rank 1
+                    int rank = 7 - fenRow;
+                    int position = rank * 8 + column;
+                    
+                    PlacePiece(color, pieceType, position);
+                    column++;
+                }
+            }
+        }
+
+        // Parse castling rights
+        _whiteKingSideCastle = castlingRights.Contains('K');
+        _whiteQueenSideCastle = castlingRights.Contains('Q');
+        _blackKingSideCastle = castlingRights.Contains('k');
+        _blackQueenSideCastle = castlingRights.Contains('q');
+    }
+
+    private static PieceType CharToPieceType(char c) {
+        return c switch {
+            'p' => PieceType.Pawn,
+            'n' => PieceType.Knight,
+            'b' => PieceType.Bishop,
+            'r' => PieceType.Rook,
+            'q' => PieceType.Queen,
+            'k' => PieceType.King,
+            _ => throw new ArgumentException($"Invalid piece character: {c}")
         };
     }
 }

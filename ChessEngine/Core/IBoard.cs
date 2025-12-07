@@ -12,4 +12,5 @@ public interface IBoard {
     List<(Piece, Position)> GetPiecesForColor(PieceColor color);
     Piece[,] GetPieces();
     Piece? GetPieceAtPosition(Position position);
+    void LoadForsythEdwardsNotation(string notation);
 }

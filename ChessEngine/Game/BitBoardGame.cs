@@ -14,6 +14,7 @@ public class BitBoardGame : IGame {
     private const int MAX_MOVES_WITHOUT_CAPTURE = 50;
     private int _movesWithoutCapture = 0;
     private bool IsGameActive = true;
+    private GameEndReason _gameEndReason = GameEndReason.None;
     public bool IsSimulated { get; private set; } = false;
     private PieceColor currentColor = PieceColor.White;
     private readonly IPlayer whitePlayer;
@@ -109,6 +110,7 @@ public class BitBoardGame : IGame {
         if(_movesWithoutCapture >= MAX_MOVES_WITHOUT_CAPTURE) {
             Winner = null;
             IsGameActive = false;
+            _gameEndReason = GameEndReason.FiftyMovesWithoutCapture;
             return;
         }
 
@@ -116,9 +118,11 @@ public class BitBoardGame : IGame {
             if(IsChecked(currentColor)) {
                 Winner = currentColor == PieceColor.White ? blackPlayer : whitePlayer;
                 IsGameActive = false;
+                _gameEndReason = GameEndReason.Checkmate;
             } else {
                 Winner = null;
                 IsGameActive = false;
+                _gameEndReason = GameEndReason.Stalemate;
             }
         }
     }
@@ -166,11 +170,12 @@ public class BitBoardGame : IGame {
     }
 
     public string GetGameEndReason() {
-        return GameEndReason.None.GetDescription();
+        return _gameEndReason.GetDescription();
     }
 
     public bool IsDraw() {
-        return false;
+        return _gameEndReason == GameEndReason.FiftyMovesWithoutCapture 
+            || _gameEndReason == GameEndReason.Stalemate;
     }
 
     public List<Piece> GetCapturedPieces() {
@@ -197,7 +202,12 @@ public class BitBoardGame : IGame {
     }
 
     public void LoadForsythEdwardsNotation(string notation) {
-        throw new NotImplementedException();
+        var parts = notation.Split(' ');
+        var turn = parts.Length > 1 ? parts[1] : "w";
+
+        currentColor = turn == "w" ? PieceColor.White : PieceColor.Black;
+        
+        board.LoadForsythEdwardsNotation(notation);
     }
 
     public IGame Clone(bool simulated = false) {
@@ -209,6 +219,7 @@ public class BitBoardGame : IGame {
             NextMoveHandler = NextMoveHandler,
             Visualizer = Visualizer,
             IsSimulated = simulated,
+            _gameEndReason = _gameEndReason,
         };
     }
 }
