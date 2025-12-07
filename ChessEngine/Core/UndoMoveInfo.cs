@@ -17,4 +17,8 @@ public struct UndoMoveInfo {
     public bool BlackKingSideCastle { get; set; }
     public bool BlackQueenSideCastle { get; set; }
     public bool WasCastling { get; set; }
+    
+    // En passant state
+    public int PreviousEnPassantSquare { get; set; }
+    public bool WasEnPassant { get; set; }
 }

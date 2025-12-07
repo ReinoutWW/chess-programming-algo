@@ -35,6 +35,9 @@ public class BitBoard : IVisualizedBoard {
     private bool _blackKingSideCastle = true;
     private bool _blackQueenSideCastle = true;
 
+    // En passant target square (-1 means no en passant possible)
+    private int _enPassantSquare = -1;
+
     private const ulong NOT_A_FILE = 0xFEFEFEFEFEFEFEFE;
     private const ulong NOT_B_FILE = 0xFDFDFDFDFDFDFDFD;
     private const ulong NOT_G_FILE = 0xBFBFBFBFBFBFBFBF;
@@ -167,120 +170,147 @@ public class BitBoard : IVisualizedBoard {
     }
 
     /// <summary>
-    /// Applies a move to the board.
-    /// This will not check if the move is valid, it will just apply it.
-    /// If the move is a capture, the captured piece will be removed from the board.
+    /// Applies a move to the board. Does not validate - just executes.
     /// </summary>
-    /// <param name="move">The move to apply</param>
-    /// <exception cref="InvalidOperationException">Thrown if there is no piece at the from position</exception>
-    /// <exception cref="InvalidOperationException">Thrown if there no at the to from position</exception>
     public UndoMoveInfo ApplyMove(Move move) {
-        var fromPosition = move.From.ToBitPosition();
-        var toPosition = move.To.ToBitPosition();
+        int from = move.From.ToBitPosition();
+        int to = move.To.ToBitPosition();
 
-        var (fromColor, fromType) = GetPieceAtPosition(fromPosition);
-        var (toColor, toType) = GetPieceAtPosition(toPosition);
+        var (color, piece) = GetPieceAtPosition(from);
+        var (capturedColor, capturedPiece) = GetPieceAtPosition(to);
 
-        if(fromColor == null || fromType == null) {
-            throw new InvalidOperationException($"No piece at position {fromPosition}");
+        if (color == null || piece == null)
+            throw new InvalidOperationException($"No piece at position {from}");
+
+        var undoInfo = CreateUndoInfo(move, color.Value, piece.Value, capturedColor, capturedPiece);
+
+        // Handle en passant capture
+        if (piece == PieceType.Pawn && to == _enPassantSquare) {
+            undoInfo.WasEnPassant = true;
+            var enemyColor = color == PieceColor.White ? PieceColor.Black : PieceColor.White;
+            int capturedSquare = color == PieceColor.White ? to - 8 : to + 8;
+            RemovePiece(enemyColor, PieceType.Pawn, capturedSquare);
+            undoInfo.CapturedType = PieceType.Pawn;
+            undoInfo.CapturedColor = enemyColor;
         }
 
-        // Store castling rights before the move
-        var undoInfo = new UndoMoveInfo {
-            Move = move,
-            MovedColor = fromColor.Value,
-            MovedType = fromType.Value,
-            CapturedColor = toColor,
-            CapturedType = toType,
-            WhiteKingSideCastle = _whiteKingSideCastle,
-            WhiteQueenSideCastle = _whiteQueenSideCastle,
-            BlackKingSideCastle = _blackKingSideCastle,
-            BlackQueenSideCastle = _blackQueenSideCastle,
-            WasCastling = false
-        };
+        // Remove captured piece (if any)
+        if (capturedColor != null && capturedPiece != null)
+            RemovePiece(capturedColor.Value, capturedPiece.Value, to);
 
-        if(toColor != null && toType != null) {
-            RemovePiece(toColor.Value, toType.Value, toPosition);
-        }
+        // Move the piece (or place promoted piece)
+        RemovePiece(color.Value, piece.Value, from);
+        PlacePiece(color.Value, move.PromotedTo ?? piece.Value, to);
 
-        RemovePiece(fromColor.Value, fromType.Value, fromPosition);
-        PlacePiece(fromColor.Value, fromType.Value, toPosition);
-
-        // Handle castling - king moves 2 squares
-        if(fromType == PieceType.King && Math.Abs(move.To.Column - move.From.Column) == 2) {
+        // Handle castling rook movement
+        if (piece == PieceType.King && Math.Abs(move.To.Column - move.From.Column) == 2) {
             undoInfo.WasCastling = true;
-            int rookFromCol = move.To.Column > move.From.Column ? 7 : 0; // King side or queen side
-            int rookToCol = move.To.Column > move.From.Column ? 5 : 3;
-            int row = fromColor == PieceColor.White ? 0 : 7;
-            
-            int rookFrom = row * 8 + rookFromCol;
-            int rookTo = row * 8 + rookToCol;
-            
-            RemovePiece(fromColor.Value, PieceType.Rook, rookFrom);
-            PlacePiece(fromColor.Value, PieceType.Rook, rookTo);
+            ApplyCastlingRookMove(color.Value, move.To.Column > move.From.Column);
         }
 
-        // Update castling rights
-        if(fromType == PieceType.King) {
-            if(fromColor == PieceColor.White) {
-                _whiteKingSideCastle = false;
-                _whiteQueenSideCastle = false;
-            } else {
-                _blackKingSideCastle = false;
-                _blackQueenSideCastle = false;
-            }
-        }
-        
-        if(fromType == PieceType.Rook) {
-            if(fromColor == PieceColor.White) {
-                if(fromPosition == 0) _whiteQueenSideCastle = false; // a1
-                if(fromPosition == 7) _whiteKingSideCastle = false;  // h1
-            } else {
-                if(fromPosition == 56) _blackQueenSideCastle = false; // a8
-                if(fromPosition == 63) _blackKingSideCastle = false;  // h8
-            }
-        }
-        
-        // If a rook is captured, revoke that side's castling rights
-        if(toType == PieceType.Rook) {
-            if(toPosition == 0) _whiteQueenSideCastle = false;
-            if(toPosition == 7) _whiteKingSideCastle = false;
-            if(toPosition == 56) _blackQueenSideCastle = false;
-            if(toPosition == 63) _blackKingSideCastle = false;
-        }
+        UpdateCastlingRights(color.Value, piece.Value, from, capturedPiece, to);
+        UpdateEnPassantSquare(color.Value, piece.Value, from, to);
 
         return undoInfo;
     }
 
-    public void UndoMove(UndoMoveInfo undoMoveInfo) {
-        var fromPosition = undoMoveInfo.Move.From.ToBitPosition();
-        var toPosition = undoMoveInfo.Move.To.ToBitPosition();
-        
-        PlacePiece(undoMoveInfo.MovedColor, undoMoveInfo.MovedType, fromPosition);
-        RemovePiece(undoMoveInfo.MovedColor, undoMoveInfo.MovedType, toPosition);
+    private UndoMoveInfo CreateUndoInfo(Move move, PieceColor color, PieceType piece, 
+                                         PieceColor? capturedColor, PieceType? capturedPiece) {
+        return new UndoMoveInfo {
+            Move = move,
+            MovedColor = color,
+            MovedType = piece,
+            CapturedColor = capturedColor,
+            CapturedType = capturedPiece,
+            WhiteKingSideCastle = _whiteKingSideCastle,
+            WhiteQueenSideCastle = _whiteQueenSideCastle,
+            BlackKingSideCastle = _blackKingSideCastle,
+            BlackQueenSideCastle = _blackQueenSideCastle,
+            PreviousEnPassantSquare = _enPassantSquare,
+            WasCastling = false,
+            WasEnPassant = false
+        };
+    }
 
-        if(undoMoveInfo.CapturedColor != null && undoMoveInfo.CapturedType != null) {
-            PlacePiece(undoMoveInfo.CapturedColor.Value, undoMoveInfo.CapturedType.Value, toPosition);
+    private void ApplyCastlingRookMove(PieceColor color, bool kingSide) {
+        int row = color == PieceColor.White ? 0 : 7;
+        int rookFrom = row * 8 + (kingSide ? 7 : 0);
+        int rookTo = row * 8 + (kingSide ? 5 : 3);
+        RemovePiece(color, PieceType.Rook, rookFrom);
+        PlacePiece(color, PieceType.Rook, rookTo);
+    }
+
+    private void UpdateCastlingRights(PieceColor color, PieceType piece, int from, PieceType? capturedPiece, int to) {
+        // King moved - lose both castling rights
+        if (piece == PieceType.King) {
+            if (color == PieceColor.White) { _whiteKingSideCastle = false; _whiteQueenSideCastle = false; }
+            else { _blackKingSideCastle = false; _blackQueenSideCastle = false; }
+        }
+
+        // Rook moved - lose that side's castling right
+        if (piece == PieceType.Rook) {
+            if (from == 0) _whiteQueenSideCastle = false;
+            if (from == 7) _whiteKingSideCastle = false;
+            if (from == 56) _blackQueenSideCastle = false;
+            if (from == 63) _blackKingSideCastle = false;
+        }
+
+        // Rook captured - lose that side's castling right
+        if (capturedPiece == PieceType.Rook) {
+            if (to == 0) _whiteQueenSideCastle = false;
+            if (to == 7) _whiteKingSideCastle = false;
+            if (to == 56) _blackQueenSideCastle = false;
+            if (to == 63) _blackKingSideCastle = false;
+        }
+    }
+
+    private void UpdateEnPassantSquare(PieceColor color, PieceType piece, int from, int to) {
+        // Set en passant square only on pawn double push
+        bool isDoublePush = piece == PieceType.Pawn && Math.Abs(to - from) == 16;
+        _enPassantSquare = isDoublePush 
+            ? (color == PieceColor.White ? to - 8 : to + 8) 
+            : -1;
+    }
+
+    /// <summary>
+    /// Undoes a move, restoring the board to its previous state.
+    /// </summary>
+    public void UndoMove(UndoMoveInfo undo) {
+        int from = undo.Move.From.ToBitPosition();
+        int to = undo.Move.To.ToBitPosition();
+
+        // Restore the moved piece to its original square
+        PlacePiece(undo.MovedColor, undo.MovedType, from);
+        RemovePiece(undo.MovedColor, undo.Move.PromotedTo ?? undo.MovedType, to);
+
+        // Restore captured piece
+        if (undo.CapturedColor != null && undo.CapturedType != null) {
+            int captureSquare = undo.WasEnPassant 
+                ? (undo.MovedColor == PieceColor.White ? to - 8 : to + 8)
+                : to;
+            PlacePiece(undo.CapturedColor.Value, undo.CapturedType.Value, captureSquare);
         }
 
         // Undo castling rook movement
-        if(undoMoveInfo.WasCastling) {
-            int rookFromCol = undoMoveInfo.Move.To.Column > undoMoveInfo.Move.From.Column ? 7 : 0;
-            int rookToCol = undoMoveInfo.Move.To.Column > undoMoveInfo.Move.From.Column ? 5 : 3;
-            int row = undoMoveInfo.MovedColor == PieceColor.White ? 0 : 7;
-            
-            int rookFrom = row * 8 + rookFromCol;
-            int rookTo = row * 8 + rookToCol;
-            
-            RemovePiece(undoMoveInfo.MovedColor, PieceType.Rook, rookTo);
-            PlacePiece(undoMoveInfo.MovedColor, PieceType.Rook, rookFrom);
+        if (undo.WasCastling) {
+            bool kingSide = undo.Move.To.Column > undo.Move.From.Column;
+            UndoCastlingRookMove(undo.MovedColor, kingSide);
         }
 
-        // Restore castling rights
-        _whiteKingSideCastle = undoMoveInfo.WhiteKingSideCastle;
-        _whiteQueenSideCastle = undoMoveInfo.WhiteQueenSideCastle;
-        _blackKingSideCastle = undoMoveInfo.BlackKingSideCastle;
-        _blackQueenSideCastle = undoMoveInfo.BlackQueenSideCastle;
+        // Restore state
+        _whiteKingSideCastle = undo.WhiteKingSideCastle;
+        _whiteQueenSideCastle = undo.WhiteQueenSideCastle;
+        _blackKingSideCastle = undo.BlackKingSideCastle;
+        _blackQueenSideCastle = undo.BlackQueenSideCastle;
+        _enPassantSquare = undo.PreviousEnPassantSquare;
+    }
+
+    private void UndoCastlingRookMove(PieceColor color, bool kingSide) {
+        int row = color == PieceColor.White ? 0 : 7;
+        int rookFrom = row * 8 + (kingSide ? 7 : 0);
+        int rookTo = row * 8 + (kingSide ? 5 : 3);
+        RemovePiece(color, PieceType.Rook, rookTo);
+        PlacePiece(color, PieceType.Rook, rookFrom);
     }
 
     public bool IsSquareAttacked(PieceColor color, Position position) {
@@ -626,6 +656,46 @@ public class BitBoard : IVisualizedBoard {
         GetPawnDoublePush(color, pawns, emptySquares, moves);
         GetPawnAttacks(color, pawns, moves);
         GetPawnPromotions(color, pawns, moves);
+        GetEnPassantMoves(color, pawns, moves);
+    }
+
+    private void GetEnPassantMoves(PieceColor color, ulong pawns, List<Move> moves) {
+        if(_enPassantSquare == -1) return;
+
+        ulong epSquareBB = 1UL << _enPassantSquare;
+        
+        // Check if any pawn can capture en passant
+        if(color == PieceColor.White) {
+            // White pawns attack from below (ep square - 7 or ep square - 9)
+            ulong leftAttacker = (epSquareBB & NOT_A_FILE) >> 9;
+            ulong rightAttacker = (epSquareBB & NOT_H_FILE) >> 7;
+            
+            if((leftAttacker & pawns) != 0) {
+                int fromSquare = _enPassantSquare - 9;
+                moves.Add(new Move(new Position(fromSquare / 8, fromSquare % 8), 
+                                   new Position(_enPassantSquare / 8, _enPassantSquare % 8)));
+            }
+            if((rightAttacker & pawns) != 0) {
+                int fromSquare = _enPassantSquare - 7;
+                moves.Add(new Move(new Position(fromSquare / 8, fromSquare % 8), 
+                                   new Position(_enPassantSquare / 8, _enPassantSquare % 8)));
+            }
+        } else {
+            // Black pawns attack from above (ep square + 7 or ep square + 9)
+            ulong leftAttacker = (epSquareBB & NOT_H_FILE) << 9;
+            ulong rightAttacker = (epSquareBB & NOT_A_FILE) << 7;
+            
+            if((leftAttacker & pawns) != 0) {
+                int fromSquare = _enPassantSquare + 9;
+                moves.Add(new Move(new Position(fromSquare / 8, fromSquare % 8), 
+                                   new Position(_enPassantSquare / 8, _enPassantSquare % 8)));
+            }
+            if((rightAttacker & pawns) != 0) {
+                int fromSquare = _enPassantSquare + 7;
+                moves.Add(new Move(new Position(fromSquare / 8, fromSquare % 8), 
+                                   new Position(_enPassantSquare / 8, _enPassantSquare % 8)));
+            }
+        }
     }
 
     private void GetPawnPromotions(PieceColor color, ulong pawns, List<Move> moves) {
@@ -978,6 +1048,7 @@ public class BitBoard : IVisualizedBoard {
             _whiteQueenSideCastle = _whiteQueenSideCastle,
             _blackKingSideCastle = _blackKingSideCastle,
             _blackQueenSideCastle = _blackQueenSideCastle,
+            _enPassantSquare = _enPassantSquare,
         };
     }
 
@@ -1025,6 +1096,16 @@ public class BitBoard : IVisualizedBoard {
         _whiteQueenSideCastle = castlingRights.Contains('Q');
         _blackKingSideCastle = castlingRights.Contains('k');
         _blackQueenSideCastle = castlingRights.Contains('q');
+
+        // Parse en passant square
+        var enPassantPart = parts.Length > 3 ? parts[3] : "-";
+        if(enPassantPart != "-") {
+            int file = enPassantPart[0] - 'a';
+            int rank = enPassantPart[1] - '1';
+            _enPassantSquare = rank * 8 + file;
+        } else {
+            _enPassantSquare = -1;
+        }
     }
 
     private static PieceType CharToPieceType(char c) {
