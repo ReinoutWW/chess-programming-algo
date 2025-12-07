@@ -75,6 +75,14 @@ public class Game : IGame {
 
     public Move? GetLastMove() => board.GetLastMove();
 
+    public UndoMoveInfo DoMoveForSimulation(Move move) {
+        throw new NotImplementedException("Use BitBoardGame for simulation with DoMove/UndoMove");
+    }
+
+    public void UndoMoveForSimulation(UndoMoveInfo undoInfo) {
+        throw new NotImplementedException("Use BitBoardGame for simulation with DoMove/UndoMove");
+    }
+
     public Board GetBoard() => board;
 
     public bool IsPawnPromotionMove(Move move) 

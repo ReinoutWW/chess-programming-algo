@@ -811,7 +811,11 @@ public class BitBoard : IVisualizedBoard {
         var pieces = new List<(Piece, Position)>();
         for(int i = 0; i < 8; i++) {
             for(int j = 0; j < 8; j++) {
-                var piece = GetPieceAtPosition(new Position(i, j));
+                var position = new Position(i, j);
+                var piece = GetPieceAtPosition(position);
+                if(piece != null && piece.Color == color) {
+                    pieces.Add((piece, position));
+                }
             }
         }
         return pieces;

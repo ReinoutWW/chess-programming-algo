@@ -70,6 +70,17 @@ public class BitBoardGame : IGame {
         await NextTurn();
     }
 
+    public UndoMoveInfo DoMoveForSimulation(Move move) {
+        var undoInfo = board.ApplyMove(move);
+        currentColor = currentColor == PieceColor.White ? PieceColor.Black : PieceColor.White;
+        return undoInfo;
+    }
+
+    public void UndoMoveForSimulation(UndoMoveInfo undoInfo) {
+        board.UndoMove(undoInfo);
+        currentColor = currentColor == PieceColor.White ? PieceColor.Black : PieceColor.White;
+    }
+
     private async Task NextTurn() {
         currentColor = 
                 currentColor == PieceColor.White 

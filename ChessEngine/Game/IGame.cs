@@ -16,6 +16,9 @@ public interface IGame {
 
     Task DoMove(Move move);
 
+    UndoMoveInfo DoMoveForSimulation(Move move);
+    void UndoMoveForSimulation(UndoMoveInfo undoInfo);
+
     IPlayer GetCurrentPlayer();
 
     List<Move> GetValidMovesForPosition(Position position);
