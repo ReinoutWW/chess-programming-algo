@@ -24,6 +24,10 @@ public class MiniMaxPlayerWithStatistics : IPlayer, IVisualizablePlayer {
     private int _promotionMovesFirst;
     private int _cutoffsFromOrderedMoves;
     private int _totalCutoffs;
+    
+    // Checkmate score constants - use large values but not int.Min/Max to avoid overflow
+    // Adding depth ensures the engine prefers faster checkmates and delays getting mated
+    private const int CheckmateScore = 1_000_000;
 
     public PieceColor Color => _color;
     public bool AlphaBetaPruningEnabled { get; set; } = true;
@@ -169,7 +173,14 @@ public class MiniMaxPlayerWithStatistics : IPlayer, IVisualizablePlayer {
         bool maximizingPlayer,
         MiniMaxNode parentNode) {
         
-        // Leaf node - evaluate position
+        // IMPORTANT: Check terminal states FIRST (before depth check)
+        // This ensures checkmate/stalemate is detected even at depth 0
+        var terminalResult = CheckTerminalState(game, depth, maximizingPlayer, parentNode);
+        if (terminalResult.HasValue) {
+            return (null!, terminalResult.Value, parentNode);
+        }
+        
+        // Leaf node - evaluate position (only reached if not a terminal state)
         if (depth == 0) {
             var evalScore = _evaluationFunction.Evaluate(game, _color);
             parentNode.Score = evalScore;
@@ -182,6 +193,47 @@ public class MiniMaxPlayerWithStatistics : IPlayer, IVisualizablePlayer {
             return MinimizingSearch(game, depth, alpha, beta, parentNode);
         }
     }
+    
+    /// <summary>
+    /// Checks if the current position is a terminal state (checkmate, stalemate, or draw).
+    /// Returns the score if terminal, null otherwise.
+    /// </summary>
+    private int? CheckTerminalState(IGame game, int depth, bool maximizingPlayer, MiniMaxNode parentNode) {
+        var currentColor = maximizingPlayer ? _color : (_color == PieceColor.White ? PieceColor.Black : PieceColor.White);
+        var possibleMoves = game.GetAllValidMovesForColor(currentColor);
+        
+        if (possibleMoves.Count == 0) {
+            if (game.IsChecked(currentColor)) {
+                // Checkmate! The current player loses.
+                // Add depth bonus so we prefer faster checkmates / delay getting mated
+                if (maximizingPlayer) {
+                    // We (maximizing) are checkmated - worst outcome
+                    // Lower depth = closer checkmate = worse score (more negative)
+                    var score = -CheckmateScore - depth;
+                    parentNode.Score = score;
+                    return score;
+                } else {
+                    // Opponent (minimizing) is checkmated - best outcome for us
+                    // Lower depth = closer checkmate = better score (more positive)
+                    var score = CheckmateScore + depth;
+                    parentNode.Score = score;
+                    return score;
+                }
+            } else {
+                // Stalemate - it's a draw (score = 0)
+                parentNode.Score = 0;
+                return 0;
+            }
+        }
+        
+        if (game.IsDraw()) {
+            // Draw by other rules (50 move, repetition, insufficient material)
+            parentNode.Score = 0;
+            return 0;
+        }
+        
+        return null; // Not a terminal state
+    }
 
     private (Move move, int score, MiniMaxNode node) MaximizingSearch(
         IGame game, 
@@ -190,22 +242,9 @@ public class MiniMaxPlayerWithStatistics : IPlayer, IVisualizablePlayer {
         int beta,
         MiniMaxNode parentNode) {
         
+        // Terminal states are already checked in Minimax() before this is called
         var possibleValidMoves = game.GetAllValidMovesForColor(_color);
-        var maxEval = int.MinValue;
-
-        // Handle terminal states
-        if (possibleValidMoves.Count == 0) {
-            if (game.IsChecked(_color)) {
-                parentNode.Score = int.MinValue; // Checkmate - worst outcome
-                return (null!, int.MinValue, parentNode);
-            } else {
-                parentNode.Score = int.MinValue; // Stalemate - treat as loss to avoid draws
-                return (null!, int.MinValue, parentNode);
-            }
-        } else if (game.IsDraw()) {
-            parentNode.Score = int.MinValue; // Treat draws as losses - avoid at all costs
-            return (null!, int.MinValue, parentNode);
-        }
+        var maxEval = -CheckmateScore - 100; // Start below any valid score
 
         // Apply move ordering for better alpha-beta pruning
         var orderedMoves = OrderMoves(possibleValidMoves, game);
@@ -293,23 +332,10 @@ public class MiniMaxPlayerWithStatistics : IPlayer, IVisualizablePlayer {
         int beta,
         MiniMaxNode parentNode) {
         
+        // Terminal states are already checked in Minimax() before this is called
         var opponentColor = _color == PieceColor.White ? PieceColor.Black : PieceColor.White;
         var possibleValidMoves = game.GetAllValidMovesForColor(opponentColor);
-        var minEval = int.MaxValue;
-
-        // Handle terminal states
-        if (possibleValidMoves.Count == 0) {
-            if (game.IsChecked(opponentColor)) {
-                parentNode.Score = int.MaxValue; // Checkmate opponent - best outcome
-                return (null!, int.MaxValue, parentNode);
-            } else {
-                parentNode.Score = int.MinValue; // Stalemate - treat as loss to avoid draws
-                return (null!, int.MinValue, parentNode);
-            }
-        } else if (game.IsDraw()) {
-            parentNode.Score = int.MinValue; // Treat draws as losses - avoid at all costs
-            return (null!, int.MinValue, parentNode);
-        }
+        var minEval = CheckmateScore + 100; // Start above any valid score
 
         // Apply move ordering for better alpha-beta pruning
         var orderedMoves = OrderMoves(possibleValidMoves, game);
