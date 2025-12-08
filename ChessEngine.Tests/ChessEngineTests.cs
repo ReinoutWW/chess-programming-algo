@@ -17,7 +17,7 @@ public class ChessEngineTests
 
     [Fact]
     public void HasCorrectInitialMoves() {
-        var game = new Game(new DummyPlayer(PieceColor.White), new DummyPlayer(PieceColor.Black));
+        var game = new BitBoardGame(new DummyPlayer(PieceColor.White), new DummyPlayer(PieceColor.Black));
         game.Start();
 
         var whiteMoves = game.GetAllValidMovesForColor(PieceColor.White);
