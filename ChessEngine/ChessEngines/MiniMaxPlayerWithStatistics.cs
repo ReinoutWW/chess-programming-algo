@@ -52,51 +52,7 @@ public class MiniMaxPlayerWithStatistics : IPlayer, IVisualizablePlayer {
         { Pieces.PieceType.King, 20000 }
     };
 
-    /// <summary>
-    /// Orders moves to improve alpha-beta pruning efficiency.
-    /// Priority: Captures (MVV-LVA) > Promotions > Other moves
-    /// </summary>
-    private List<(Move move, int priority, string orderReason)> OrderMoves(List<Move> moves, Board board) {
-        if (!MoveOrderingEnabled) {
-            return moves.Select(m => (m, 0, "unordered")).ToList();
-        }
-
-        var orderedMoves = new List<(Move move, int priority, string orderReason)>();
-
-        foreach (var move in moves) {
-            int priority = 0;
-            string reason = "quiet";
-
-            // Check for capture (MVV-LVA: Most Valuable Victim - Least Valuable Attacker)
-            var capturedPiece = board.GetPieceAtPosition(move.To);
-            var movingPiece = board.GetPieceAtPosition(move.From);
-            
-            if (capturedPiece != null && movingPiece != null) {
-                // MVV-LVA score: victim value * 10 - attacker value
-                // This prioritizes capturing high-value pieces with low-value pieces
-                int victimValue = PieceValues.GetValueOrDefault(capturedPiece.Type, 0);
-                int attackerValue = PieceValues.GetValueOrDefault(movingPiece.Type, 0);
-                priority = victimValue * 10 - attackerValue + 10000; // +10000 to ensure captures come first
-                reason = $"capture:{capturedPiece.Type}";
-                _captureMovesFirst++;
-            }
-
-            // Check for promotion
-            if (move.PromotedTo.HasValue) {
-                int promotionValue = PieceValues.GetValueOrDefault(move.PromotedTo.Value, 0);
-                priority = Math.Max(priority, promotionValue + 5000); // Promotions are very valuable
-                reason = $"promote:{move.PromotedTo.Value}";
-                _promotionMovesFirst++;
-            }
-
-            orderedMoves.Add((move, priority, reason));
-        }
-
-        // Sort by priority descending (highest priority first)
-        return orderedMoves.OrderByDescending(m => m.priority).ToList();
-    }
-
-    public async Task<Move> GetMove(IGame game) {
+    public Task<Move> GetMove(IGame game) {
         // Reset counters for new search
         _nodeIdCounter = 0;
         _visitOrderCounter = 0;
@@ -119,12 +75,12 @@ public class MiniMaxPlayerWithStatistics : IPlayer, IVisualizablePlayer {
             Beta = int.MaxValue,
             Parent = null,
             VisitOrder = _visitOrderCounter++,
-            BoardState = CaptureBoardState(game.GetBoard())
+            BoardState = CaptureBoardState(game)
         };
         _nodesInVisitOrder.Add(rootNode);
 
         // Run minimax and build tree
-        var (bestMove, score, _) = await Minimax(
+        var (bestMove, score, _) = Minimax(
             game, 
             SearchDepth, 
             int.MinValue, 
@@ -158,10 +114,54 @@ public class MiniMaxPlayerWithStatistics : IPlayer, IVisualizablePlayer {
             NodesInVisitOrder = _nodesInVisitOrder
         };
 
-        return bestMove;
+        return Task.FromResult(bestMove);
     }
 
-    private async Task<(Move move, int score, MiniMaxNode node)> Minimax(
+    /// <summary>
+    /// Orders moves to improve alpha-beta pruning efficiency.
+    /// Priority: Captures (MVV-LVA) > Promotions > Other moves
+    /// </summary>
+    private List<(Move move, int priority, string orderReason)> OrderMoves(List<Move> moves, IGame game) {
+        if (!MoveOrderingEnabled) {
+            return moves.Select(m => (m, 0, "unordered")).ToList();
+        }
+
+        var orderedMoves = new List<(Move move, int priority, string orderReason)>();
+
+        foreach (var move in moves) {
+            int priority = 0;
+            string reason = "quiet";
+
+            // Check for capture (MVV-LVA: Most Valuable Victim - Least Valuable Attacker)
+            var capturedPiece = game.GetPieceAtPosition(move.To);
+            var movingPiece = game.GetPieceAtPosition(move.From);
+            
+            if (capturedPiece != null && movingPiece != null) {
+                // MVV-LVA score: victim value * 10 - attacker value
+                // This prioritizes capturing high-value pieces with low-value pieces
+                int victimValue = PieceValues.GetValueOrDefault(capturedPiece.Type, 0);
+                int attackerValue = PieceValues.GetValueOrDefault(movingPiece.Type, 0);
+                priority = victimValue * 10 - attackerValue + 10000; // +10000 to ensure captures come first
+                reason = $"capture:{capturedPiece.Type}";
+                _captureMovesFirst++;
+            }
+
+            // Check for promotion
+            if (move.PromotedTo.HasValue) {
+                int promotionValue = PieceValues.GetValueOrDefault(move.PromotedTo.Value, 0);
+                priority = Math.Max(priority, promotionValue + 5000); // Promotions are very valuable
+                reason = $"promote:{move.PromotedTo.Value}";
+                _promotionMovesFirst++;
+            }
+
+            orderedMoves.Add((move, priority, reason));
+        }
+
+        // Sort by priority descending (highest priority first)
+        return orderedMoves.OrderByDescending(m => m.priority).ToList();
+    }
+
+    private (Move move, int score, MiniMaxNode node) Minimax(
         IGame game, 
         int depth, 
         int alpha, 
@@ -177,13 +177,13 @@ public class MiniMaxPlayerWithStatistics : IPlayer, IVisualizablePlayer {
         }
 
         if (maximizingPlayer) {
-            return await MaximizingSearch(game, depth, alpha, beta, parentNode);
+            return MaximizingSearch(game, depth, alpha, beta, parentNode);
         } else {
-            return await MinimizingSearch(game, depth, alpha, beta, parentNode);
+            return MinimizingSearch(game, depth, alpha, beta, parentNode);
         }
     }
 
-    private async Task<(Move move, int score, MiniMaxNode node)> MaximizingSearch(
+    private (Move move, int score, MiniMaxNode node) MaximizingSearch(
         IGame game, 
         int depth, 
         int alpha, 
@@ -208,14 +208,13 @@ public class MiniMaxPlayerWithStatistics : IPlayer, IVisualizablePlayer {
         }
 
         // Apply move ordering for better alpha-beta pruning
-        var orderedMoves = OrderMoves(possibleValidMoves, game.GetBoard());
+        var orderedMoves = OrderMoves(possibleValidMoves, game);
         var bestMove = orderedMoves[0].move;
         int moveIndex = 0;
 
         foreach (var (move, priority, orderReason) in orderedMoves) {
-            // Simulate move first to capture board state
-            var copiedGame = game.Clone(simulated: true);
-            await copiedGame.DoMove(move);
+            // Apply move
+            var undoInfo = game.DoMoveForSimulation(move);
 
             // Create child node with board state after move
             var childNode = new MiniMaxNode {
@@ -228,7 +227,7 @@ public class MiniMaxPlayerWithStatistics : IPlayer, IVisualizablePlayer {
                 Beta = beta,
                 Parent = parentNode,
                 VisitOrder = _visitOrderCounter++,
-                BoardState = CaptureBoardState(copiedGame.GetBoard()),
+                BoardState = CaptureBoardState(game),
                 MoveOrderPriority = priority,
                 MoveOrderReason = orderReason
             };
@@ -236,8 +235,11 @@ public class MiniMaxPlayerWithStatistics : IPlayer, IVisualizablePlayer {
             _nodesInVisitOrder.Add(childNode);
 
             // Recurse
-            var (_, evalScore, _) = await Minimax(copiedGame, depth - 1, alpha, beta, false, childNode);
+            var (_, evalScore, _) = Minimax(game, depth - 1, alpha, beta, false, childNode);
             childNode.Score = evalScore;
+
+            // Undo move
+            game.UndoMoveForSimulation(undoInfo);
 
             if (evalScore > maxEval) {
                 maxEval = evalScore;
@@ -284,7 +286,7 @@ public class MiniMaxPlayerWithStatistics : IPlayer, IVisualizablePlayer {
         return (bestMove, maxEval, parentNode);
     }
 
-    private async Task<(Move move, int score, MiniMaxNode node)> MinimizingSearch(
+    private (Move move, int score, MiniMaxNode node) MinimizingSearch(
         IGame game, 
         int depth, 
         int alpha, 
@@ -310,14 +312,13 @@ public class MiniMaxPlayerWithStatistics : IPlayer, IVisualizablePlayer {
         }
 
         // Apply move ordering for better alpha-beta pruning
-        var orderedMoves = OrderMoves(possibleValidMoves, game.GetBoard());
+        var orderedMoves = OrderMoves(possibleValidMoves, game);
         var bestMove = orderedMoves[0].move;
         int moveIndex = 0;
 
         foreach (var (move, priority, orderReason) in orderedMoves) {
-            // Simulate move first to capture board state
-            var copiedGame = game.Clone(simulated: true);
-            await copiedGame.DoMove(move);
+            // Apply move
+            var undoInfo = game.DoMoveForSimulation(move);
 
             // Create child node with board state after move
             var childNode = new MiniMaxNode {
@@ -330,7 +331,7 @@ public class MiniMaxPlayerWithStatistics : IPlayer, IVisualizablePlayer {
                 Beta = beta,
                 Parent = parentNode,
                 VisitOrder = _visitOrderCounter++,
-                BoardState = CaptureBoardState(copiedGame.GetBoard()),
+                BoardState = CaptureBoardState(game),
                 MoveOrderPriority = priority,
                 MoveOrderReason = orderReason
             };
@@ -338,8 +339,11 @@ public class MiniMaxPlayerWithStatistics : IPlayer, IVisualizablePlayer {
             _nodesInVisitOrder.Add(childNode);
 
             // Recurse
-            var (_, evalScore, _) = await Minimax(copiedGame, depth - 1, alpha, beta, true, childNode);
+            var (_, evalScore, _) = Minimax(game, depth - 1, alpha, beta, true, childNode);
             childNode.Score = evalScore;
+
+            // Undo move
+            game.UndoMoveForSimulation(undoInfo);
 
             if (evalScore < minEval) {
                 minEval = evalScore;
@@ -431,11 +435,11 @@ public class MiniMaxPlayerWithStatistics : IPlayer, IVisualizablePlayer {
         return notation;
     }
 
-    private MiniBoardPiece?[,] CaptureBoardState(Board board) {
+    private MiniBoardPiece?[,] CaptureBoardState(IGame game) {
         var state = new MiniBoardPiece?[8, 8];
         for (int row = 0; row < 8; row++) {
             for (int col = 0; col < 8; col++) {
-                var piece = board.GetPieceAtPosition(new Position(row, col));
+                var piece = game.GetPieceAtPosition(new Position(row, col));
                 if (piece != null) {
                     state[row, col] = new MiniBoardPiece {
                         Type = piece.Type,

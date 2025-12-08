@@ -15,8 +15,8 @@ using Chess.Programming.Ago.Pieces;
 /// </summary>
 public class MaterialMobilityFunction : IEvaluationFunction {
     public int Evaluate(IGame game, PieceColor color) {
-        var allCurrentColorPieces = game.GetBoard().GetPiecesForColor(color);
-        var allOtherColorPieces = game.GetBoard().GetPiecesForColor(color == PieceColor.White ? PieceColor.Black : PieceColor.White);
+        var allCurrentColorPieces = game.GetPiecesForColor(color);
+        var allOtherColorPieces = game.GetPiecesForColor(color == PieceColor.White ? PieceColor.Black : PieceColor.White);
 
         var materialScore = MaterialScore(allCurrentColorPieces, allOtherColorPieces);
         var mobilityScore = MobilityScore(game, allCurrentColorPieces, allOtherColorPieces);

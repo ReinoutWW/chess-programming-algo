@@ -61,7 +61,7 @@
             <div class="captured-pieces-panel captured-pieces-white">
                 <h3>Captured by White</h3>
                 <div class="captured-pieces-list">
-                    @foreach(var piece in board.GetCapturedPieces().Where(p => p.Color == PieceColor.Black)) {
+                    @foreach(var piece in game.GetCapturedPieces().Where(p => p.Color == PieceColor.Black)) {
                         <div class="captured-piece @(@piece.Type.ToString().ToLower())-@(@piece.Color.ToString().ToLower())"></div>
                     }
                 </div>
@@ -84,7 +84,7 @@
                         @for(int i = 0; i < 8; i++) {
                             <div class="board-column">
                                 @for(int j = 0; j < 8; j++) {
-                                    var row = i;
+                                    var row = 7 - i;
                                     var column = j;
                                     var position = new Position(row, column);
                                     var promotionMovesToThisSquare = validMovesForselectedCellPosition
@@ -106,7 +106,7 @@
                                             ondragover="event.preventDefault();"
                                             @ondrop="() => HandleDrop(position)">
                                         @{
-                                            var piece = board.GetPieceAtPosition(position);
+                                            var piece = game.GetPieceAtPosition(position);
                                             var isDraggable = piece != null && piece.Color == game.GetCurrentPlayer().Color && isGameStarted && !game.GetCurrentPlayer().IsAI() && !game.IsFinished();
                                             if(hasPromotionOptions) {
                                                 <div class="promotion-options">
@@ -164,7 +164,7 @@
             <div class="captured-pieces-panel captured-pieces-black">
                 <h3>Captured by Black</h3>
                 <div class="captured-pieces-list">
-                    @foreach(var piece in board.GetCapturedPieces().Where(p => p.Color == PieceColor.White)) {
+                    @foreach(var piece in game.GetCapturedPieces().Where(p => p.Color == PieceColor.White)) {
                         <div class="captured-piece @(@piece.Type.ToString().ToLower())-@(@piece.Color.ToString().ToLower())"></div>
                     }
                 </div>
@@ -948,7 +948,6 @@
     public int DelayPerMoveInMilliseconds { get; set; } = 100;
 
     private IGame game;
-    private Board board = new Board();
     private bool isGameStarted = false;
 
     private bool HasVisualizablePlayer => 
@@ -968,7 +967,7 @@
     }
 
     protected override void OnInitialized() {
-        game = new Game(WhitePlayer, BlackPlayer, DelayPerMoveInMilliseconds);
+        game = new BitBoardGame(WhitePlayer, BlackPlayer, DelayPerMoveInMilliseconds);
         
         // Initialize settings from player if available
         var visualizablePlayer = GetVisualizablePlayer();
@@ -985,8 +984,6 @@
     protected override async Task OnAfterRenderAsync(bool firstRender) {
         if(firstRender) {
             game.NextMoveHandler = async () => {
-                board = game.GetBoard();
-                
                 // Clear any active hint when a move is made
                 currentHint = null;
                 hintService.ClearHint();
@@ -999,8 +996,6 @@
                 
                 StateHasChanged(); 
             };
-            
-            board = game.GetBoard();
         }
     }
 
@@ -1083,7 +1078,7 @@
             UnsetSelectedCell();
         } else {
             // Check if clicking on a friendly piece - switch selection instead of moving
-            var clickedPiece = board.GetPieceAtPosition(clickedPosition);
+            var clickedPiece = game.GetPieceAtPosition(clickedPosition);
             if(clickedPiece != null && clickedPiece.Color == game.GetCurrentPlayer().Color) {
                 SetSelectedCell(clickedPosition);
             } else {
@@ -1138,7 +1133,7 @@
     }
 
     private void SetSelectedCell(Position position) {
-        var piece = board.GetPieceAtPosition(position);
+        var piece = game.GetPieceAtPosition(position);
 
         if(piece == null) {
             return;
@@ -1157,7 +1152,7 @@
             return;
         }
 
-        var piece = board.GetPieceAtPosition(position);
+        var piece = game.GetPieceAtPosition(position);
         if(piece == null || piece.Color != game.GetCurrentPlayer().Color) {
             return;
         }

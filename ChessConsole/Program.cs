@@ -5,7 +5,7 @@ using ChessConsole;
 Console.WriteLine("Welcome to C# Chess!");
 
 var gameActive = true;
-IGame game = new Game(new HumanConsolePlayer(PieceColor.White), new HumanConsolePlayer(PieceColor.Black));
+IGame game = new BitBoardGame(new HumanConsolePlayer(PieceColor.White), new HumanConsolePlayer(PieceColor.Black));
 
 await game.Start();
 

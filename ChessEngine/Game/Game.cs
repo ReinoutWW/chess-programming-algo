@@ -75,6 +75,14 @@ public class Game : IGame {
 
     public Move? GetLastMove() => board.GetLastMove();
 
+    public UndoMoveInfo DoMoveForSimulation(Move move) {
+        throw new NotImplementedException("Use BitBoardGame for simulation with DoMove/UndoMove");
+    }
+
+    public void UndoMoveForSimulation(UndoMoveInfo undoInfo) {
+        throw new NotImplementedException("Use BitBoardGame for simulation with DoMove/UndoMove");
+    }
+
     public Board GetBoard() => board;
 
     public bool IsPawnPromotionMove(Move move) 
@@ -131,6 +139,14 @@ public class Game : IGame {
         return validMoves;
     }
 
+    public List<Piece> GetCapturedPieces() {
+        return board.GetCapturedPieces();
+    }
+
+    public List<(Piece, Position)> GetPiecesForColor(PieceColor color) {
+        return board.GetPiecesForColor(color);
+    }
+
     private void ValidateIfGameIsOver() {
 
         if(_movesWithoutCapture >= MAX_MOVES_WITHOUT_CAPTURE) {
@@ -182,6 +198,10 @@ public class Game : IGame {
 
     public void Visualize() {
         Visualizer?.Visualize(board);
+    }
+
+    public Piece? GetPieceAtPosition(Position position) {
+        return board.GetPieceAtPosition(position);
     }
 
     public List<Move> GetValidMovesForPosition(Position position) {

@@ -27,11 +27,9 @@ public class ChessEngineTests
 
     /// <summary>
     /// Perft (Performance Test) - counts the number of leaf nodes at a given depth
+    /// Uses make/undo pattern for BitBoardGame (much faster than cloning)
     /// </summary>
-    /// <param name="game">The game state</param>
-    /// <param name="depth">The depth to search</param>
-    /// <returns>Total number of positions at the given depth</returns>
-    private long Perft(IGame game, int depth)
+    private long Perft(BitBoardGame game, int depth)
     {
         if (depth == 0)
         {
@@ -44,14 +42,9 @@ public class ChessEngineTests
 
         foreach (var move in moves)
         {
-            // Clone the game to avoid modifying the original
-            var clonedGame = game.Clone(simulated: true);
-            
-            // Make the move
-            clonedGame.DoMove(move).Wait();
-            
-            // Recurse to the next depth
-            totalMoves += Perft(clonedGame, depth - 1);
+            var undoInfo = game.DoMoveForSimulation(move);
+            totalMoves += Perft(game, depth - 1);
+            game.UndoMoveForSimulation(undoInfo);
         }
 
         return totalMoves;
@@ -59,8 +52,9 @@ public class ChessEngineTests
 
     /// <summary>
     /// Perft with detailed breakdown per move at the root level
+    /// Uses make/undo pattern for BitBoardGame
     /// </summary>
-    private Dictionary<string, long> PerftDivide(IGame game, int depth)
+    private Dictionary<string, long> PerftDivide(BitBoardGame game, int depth)
     {
         var results = new Dictionary<string, long>();
         var currentPlayer = game.GetCurrentPlayer();
@@ -68,10 +62,10 @@ public class ChessEngineTests
 
         foreach (var move in moves)
         {
-            var clonedGame = game.Clone(simulated: true);
-            clonedGame.DoMove(move).Wait();
+            var undoInfo = game.DoMoveForSimulation(move);
+            long count = depth > 1 ? Perft(game, depth - 1) : 1;
+            game.UndoMoveForSimulation(undoInfo);
             
-            long count = depth > 1 ? Perft(clonedGame, depth - 1) : 1;
             string moveStr = $"({move.From.Row},{move.From.Column}) -> ({move.To.Row},{move.To.Column})";
             results[moveStr] = count;
         }
@@ -84,10 +78,9 @@ public class ChessEngineTests
     [InlineData(2, 400)]
     [InlineData(3, 8902)]
     [InlineData(4, 197281)]
-    public void Perft_ShouldReturnCorrectMoves(int depth, long expectedMoves)
+    public void BitBoard_Perft_ShouldReturnCorrectMoves(int depth, long expectedMoves)
     {
-        var game = new Game(new DummyPlayer(PieceColor.White), new DummyPlayer(PieceColor.Black));
-        game.Start();
+        var game = new BitBoardGame(new DummyPlayer(PieceColor.White), new DummyPlayer(PieceColor.Black));
 
         long totalMoves = Perft(game, depth);
         
@@ -99,25 +92,25 @@ public class ChessEngineTests
     [InlineData(2, 1486)]
     [InlineData(3, 62379)]
     [InlineData(4, 2103487)]
-    public void Perft_Position5ShouldReturnCorrectMoves(int depth, long expectedMoves)
+    public void BitBoard_Perft_Position5ShouldReturnCorrectMoves(int depth, long expectedMoves)
     {
         const string fen = "rnbq1k1r/pp1Pbppp/2p5/8/2B5/8/PPP1NnPP/RNBQK2R w KQ - 1 8";
-        var game = new Game(new DummyPlayer(PieceColor.White), new DummyPlayer(PieceColor.Black), 0, fen);
+        var game = new BitBoardGame(new DummyPlayer(PieceColor.White), new DummyPlayer(PieceColor.Black));
+        game.LoadForsythEdwardsNotation(fen);
         
         long totalMoves = Perft(game, depth);
         
-        Assert.Equal(expectedMoves, totalMoves); // Known perft(3) for this position
+        Assert.Equal(expectedMoves, totalMoves);
     }
 
     [Fact]
-    public void PerftDivide_Depth1_ShowsAllInitialMoves()
+    public void BitBoard_PerftDivide_Depth1_ShowsAllInitialMoves()
     {
-        var game = new Game(new DummyPlayer(PieceColor.White), new DummyPlayer(PieceColor.Black));
-        game.Start();
+        var game = new BitBoardGame(new DummyPlayer(PieceColor.White), new DummyPlayer(PieceColor.Black));
 
         var results = PerftDivide(game, 1);
         
-        _output.WriteLine("Perft Divide at depth 1:");
+        _output.WriteLine("BitBoard Perft Divide at depth 1:");
         long total = 0;
         foreach (var kvp in results)
         {
@@ -128,5 +121,14 @@ public class ChessEngineTests
         
         Assert.Equal(20, results.Count);
         Assert.Equal(20, total);
+    }
+
+    [Fact]
+    public void BitBoard_HasCorrectInitialMoves() {
+        var game = new BitBoardGame(new DummyPlayer(PieceColor.White), new DummyPlayer(PieceColor.Black));
+
+        var whiteMoves = game.GetAllValidMovesForColor(PieceColor.White);
+
+        Assert.Equal(20, whiteMoves.Count);
     }
 }

@@ -10,6 +10,8 @@ Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ChessBlazor", "ChessBlazor\
 EndProject
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ChessEngine.Tests", "ChessEngine.Tests\ChessEngine.Tests.csproj", "{D65A5B1B-2EE0-4988-AC8A-581F584B38C5}"
 EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "ChessConsole.BitBoard", "ChessConsole.BitBoard\ChessConsole.BitBoard.csproj", "{EB97F435-9905-4CA1-9115-EF14579B6B81}"
+EndProject
 Global
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
@@ -74,5 +76,17 @@ Global
 		{D65A5B1B-2EE0-4988-AC8A-581F584B38C5}.Release|x64.Build.0 = Release|Any CPU
 		{D65A5B1B-2EE0-4988-AC8A-581F584B38C5}.Release|x86.ActiveCfg = Release|Any CPU
 		{D65A5B1B-2EE0-4988-AC8A-581F584B38C5}.Release|x86.Build.0 = Release|Any CPU
+		{EB97F435-9905-4CA1-9115-EF14579B6B81}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{EB97F435-9905-4CA1-9115-EF14579B6B81}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{EB97F435-9905-4CA1-9115-EF14579B6B81}.Debug|x64.ActiveCfg = Debug|Any CPU
+		{EB97F435-9905-4CA1-9115-EF14579B6B81}.Debug|x64.Build.0 = Debug|Any CPU
+		{EB97F435-9905-4CA1-9115-EF14579B6B81}.Debug|x86.ActiveCfg = Debug|Any CPU
+		{EB97F435-9905-4CA1-9115-EF14579B6B81}.Debug|x86.Build.0 = Debug|Any CPU
+		{EB97F435-9905-4CA1-9115-EF14579B6B81}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{EB97F435-9905-4CA1-9115-EF14579B6B81}.Release|Any CPU.Build.0 = Release|Any CPU
+		{EB97F435-9905-4CA1-9115-EF14579B6B81}.Release|x64.ActiveCfg = Release|Any CPU
+		{EB97F435-9905-4CA1-9115-EF14579B6B81}.Release|x64.Build.0 = Release|Any CPU
+		{EB97F435-9905-4CA1-9115-EF14579B6B81}.Release|x86.ActiveCfg = Release|Any CPU
+		{EB97F435-9905-4CA1-9115-EF14579B6B81}.Release|x86.Build.0 = Release|Any CPU
 	EndGlobalSection
 EndGlobal

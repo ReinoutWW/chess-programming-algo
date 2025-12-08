@@ -32,7 +32,7 @@ public static class GameExtensions
 
     public static bool HasAnyLegalMoves(this IGame game, PieceColor color)
     {
-        var pieces = game.GetBoard().GetPiecesForColor(color);
+        var pieces = game.GetPiecesForColor(color);
 
         foreach(var piece in pieces) {
             var validMoves = game.GetValidMovesForPosition(piece.Item2);

@@ -16,7 +16,7 @@ public class VeryRandomMovePlayer(PieceColor color) : IPlayer {
     public async Task<Move> GetMove(IGame game) {
         Console.WriteLine("Getting move for " + color);
 
-        var pieces = game.GetBoard().GetPiecesForColor(color);
+        var pieces = game.GetPiecesForColor(color);
         pieces = pieces.OrderBy(p => Random.Shared.Next()).ToList();
         
         foreach(var piece in pieces) {

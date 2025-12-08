@@ -16,7 +16,7 @@ public class GreedyPlayer(PieceColor color) : IPlayer {
     public PieceColor Color => color;
     public bool IsAI() => true;
     public async Task<Move> GetMove(IGame game) {
-        var pieces = game.GetBoard().GetPiecesForColor(color);
+        var pieces = game.GetPiecesForColor(color);
 
         Move? bestMove = null;
         var bestValue = 0;
@@ -25,7 +25,7 @@ public class GreedyPlayer(PieceColor color) : IPlayer {
             var validMoves = game.GetValidMovesForPosition(piece.Item2);
 
             foreach(var move in validMoves) {
-                var enemyPiece = game.GetBoard().GetPieceAtPosition(move.To);
+                var enemyPiece = game.GetPieceAtPosition(move.To);
 
                 if(enemyPiece != null && enemyPiece.Color != color) {
                     var value = enemyPiece.GetMaterialValue();
