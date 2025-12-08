@@ -471,56 +471,6 @@ public class BitBoard : IVisualizedBoard {
             | possibleMoveEight;
     }
 
-
-    /// <summary>
-    /// Returns a bitboard of all squares white pawns can push to.
-    /// </summary>
-    public ulong GetWhitePawnPushes() {
-        var pawns = _pieces[(int)PieceColor.White, (int)PieceType.Pawn];
-        var emptySquares = ~_occupiedSquares;
-        var singlePush = (pawns << 8) & emptySquares;
-        var doublePush = (singlePush << 8) & emptySquares & RANK_4;
-
-        return singlePush | doublePush;
-    }
-
-    /// <summary>
-    /// Returns a bitboard of all squares white pawns ATTACK (not necessarily capture).
-    /// </summary>
-    public ulong GetWhitePawnAttacks() {
-        var pawns = _pieces[(int)PieceColor.White, (int)PieceType.Pawn];
-        
-        var leftAttacks = (pawns & NOT_A_FILE) << 7;
-        var rightAttacks = (pawns & NOT_H_FILE) << 9;
-        
-        return leftAttacks | rightAttacks;
-    }
-
-    /// <summary>
-    /// Returns a bitboard of all squares black pawns can push to.
-    /// </summary>
-    public ulong GetBlackPawnPushes() {
-        var pawns = _pieces[(int)PieceColor.Black, (int)PieceType.Pawn];
-
-        var emptySquares = ~_occupiedSquares;
-        var singlePush = (pawns >> 8) & emptySquares;
-        var doublePush = (singlePush >> 8) & emptySquares & RANK_5;
-
-        return singlePush | doublePush;
-    }
-
-    /// <summary>
-    /// Returns a bitboard of all squares black pawns ATTACK (not necessarily capture).
-    /// </summary>
-    public ulong GetBlackPawnAttacks() {
-        var pawns = _pieces[(int)PieceColor.Black, (int)PieceType.Pawn];
-        
-        var leftAttacks = (pawns & NOT_H_FILE) >> 7;
-        var rightAttacks = (pawns & NOT_A_FILE) >> 9;
-        
-        return leftAttacks | rightAttacks;
-    }
-
     /// <summary>
     /// Precomputes the attacks for all rooks so in the future, a lookup is O(1) time complexity.
     /// </summary>

@@ -3,6 +3,7 @@
 @using global::Chess.Programming.Ago.ChessEngines
 @using global::Chess.Programming.Ago.Pieces
 @using Microsoft.AspNetCore.Components.Web.Virtualization
+@using System.Globalization
 
 <div class="minimax-fullscreen">
     <div class="header">
@@ -93,6 +94,9 @@
                 <button class="mode-btn @(viewMode == ViewMode.Evaluated ? "active" : "")" @onclick="() => SetViewMode(ViewMode.Evaluated)">
                     Evaluated (@visitedNodeIds.Count)
                 </button>
+                <button class="mode-btn @(viewMode == ViewMode.TreeDiagram ? "active" : "")" @onclick="() => SetViewMode(ViewMode.TreeDiagram)">
+                    Tree Diagram
+                </button>
             </div>
 
             <div class="depth-control">
@@ -173,57 +177,326 @@
             </div>
         }
 
-        @* Simplified tree view - list-based for performance *@
-        <div class="tree-list-container">
-            @{
-                var displayNodes = GetDisplayNodes();
-                visibleNodesCount = displayNodes.Count;
-            }
-            
-            @foreach (var item in displayNodes) {
-                var node = item.Node;
-                var isCurrent = currentNode?.Id == node.Id;
-                var nodeClass = GetNodeClass(node, isCurrent);
+        @if (viewMode == ViewMode.TreeDiagram) {
+            @* Visual Tree Diagram *@
+            <div class="tree-diagram-container">
+                @{
+                    var (diagramNodes, diagramEdges, svgWidth, svgHeight) = CalculateTreeLayout();
+                    visibleNodesCount = diagramNodes.Count;
+                }
                 
-                <div class="tree-node-row @nodeClass" style="padding-left: @(item.Depth * 24 + 12)px" @onclick="() => JumpToNode(node)">
-                    <div class="node-indent">
-                        @if (item.HasChildren) {
-                            <button class="expand-toggle" @onclick="() => ToggleExpand(node.Id)" @onclick:stopPropagation="true">
-                                @(expandedNodes.Contains(node.Id) ? "−" : "+")
-                            </button>
-                        } else {
-                            <span class="expand-spacer"></span>
+                <div class="tree-diagram-info">
+                    <p>This diagram shows the <strong>best path</strong> (highlighted in blue) along with <strong>example branches</strong> to demonstrate alpha-beta pruning. 
+                    Pruned branches are shown with dashed lines and striped nodes.</p>
+                </div>
+                
+                <div class="tree-diagram-scroll">
+                    <svg class="tree-svg" 
+                         width="@(Math.Max(svgWidth + 100, 800))" 
+                         height="@(Math.Max(svgHeight + 50, 400))"
+                         viewBox="0 0 @(Math.Max(svgWidth + 100, 800)) @(Math.Max(svgHeight + 50, 400))">
+                        
+                        <defs>
+                            @* Pattern for pruned nodes *@
+                            <pattern id="prunedPattern" patternUnits="userSpaceOnUse" width="8" height="8">
+                                <path d="M-2,2 l4,-4 M0,8 l8,-8 M6,10 l4,-4" stroke="#8e8e93" stroke-width="1.5" opacity="0.4"/>
+                            </pattern>
+                            @* Arrow marker for edges *@
+                            <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                                <polygon points="0 0, 10 3.5, 0 7" fill="#86868b"/>
+                            </marker>
+                            <marker id="arrowhead-best" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                                <polygon points="0 0, 10 3.5, 0 7" fill="#007aff"/>
+                            </marker>
+                            <marker id="arrowhead-pruned" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+                                <polygon points="0 0, 10 3.5, 0 7" fill="#ff3b30"/>
+                            </marker>
+                        </defs>
+                        
+                        @* Draw edges first (behind nodes) *@
+                        @foreach (var edge in diagramEdges) {
+                            var edgeClass = GetTreeEdgeClass(edge);
+                            var markerId = edge.IsPruned ? "arrowhead-pruned" : (edge.IsOnBestPath ? "arrowhead-best" : "arrowhead");
+                            
+                            @* Curved path for edge *@
+                            <path class="@edgeClass"
+                                  d="M @edge.X1.ToString(CultureInfo.InvariantCulture) @edge.Y1.ToString(CultureInfo.InvariantCulture) C @edge.X1.ToString(CultureInfo.InvariantCulture) @((edge.Y1 + 40).ToString(CultureInfo.InvariantCulture)), @edge.X2.ToString(CultureInfo.InvariantCulture) @((edge.Y2 - 40).ToString(CultureInfo.InvariantCulture)), @edge.X2.ToString(CultureInfo.InvariantCulture) @edge.Y2.ToString(CultureInfo.InvariantCulture)"
+                                  marker-end="url(#@markerId)" />
+                            
+                            @* Pruning indicator on pruned edges *@
+                            @if (edge.IsPruned) {
+                                var midX = (edge.X1 + edge.X2) / 2;
+                                var midY = (edge.Y1 + edge.Y2) / 2;
+                                <g class="prune-indicator" transform="translate(@midX.ToString(CultureInfo.InvariantCulture), @midY.ToString(CultureInfo.InvariantCulture))">
+                                    <circle r="12" fill="#ff3b30" />
+                                    <foreignObject x="-12" y="-12" width="24" height="24">
+                                        <div xmlns="http://www.w3.org/1999/xhtml" class="svg-prune-icon">✂</div>
+                                    </foreignObject>
+                                </g>
+                            }
                         }
-                        <span class="tree-line">@(item.IsLast ? "└" : "├")─</span>
+                        
+                        @* Draw nodes *@
+                        @foreach (var diagNode in diagramNodes) {
+                            var node = diagNode.Node;
+                            var nodeClass = GetTreeNodeClass(node, diagNode.IsOnBestPath);
+                            var fillColor = node.IsPruned 
+                                ? "url(#prunedPattern)" 
+                                : (node.IsMaximizing ? "#e8f5e9" : "#fff3e0");
+                            var strokeColor = diagNode.IsOnBestPath 
+                                ? "#007aff" 
+                                : (node.IsPruned ? "#8e8e93" : (node.IsMaximizing ? "#34c759" : "#ff9500"));
+                            var strokeWidth = diagNode.IsOnBestPath ? "3" : "2";
+                            
+                            <g class="@nodeClass" 
+                               transform="translate(@diagNode.X.ToString(CultureInfo.InvariantCulture), @diagNode.Y.ToString(CultureInfo.InvariantCulture))"
+                               @onclick="() => JumpToNode(node)"
+                               style="cursor: pointer;">
+                                
+                                @* Node background *@
+                                <rect x="0" y="0" 
+                                      width="@NodeWidth" height="@NodeHeight" 
+                                      rx="8" ry="8"
+                                      fill="@fillColor" 
+                                      stroke="@strokeColor" 
+                                      stroke-width="@strokeWidth" />
+                                
+                                @* Best path glow effect *@
+                                @if (diagNode.IsOnBestPath && !node.IsPruned) {
+                                    <rect x="-2" y="-2" 
+                                          width="@(NodeWidth + 4)" height="@(NodeHeight + 4)" 
+                                          rx="10" ry="10"
+                                          fill="none" 
+                                          stroke="#007aff" 
+                                          stroke-width="1"
+                                          opacity="0.3" />
+                                }
+                                
+                                @* Type badge (MAX/MIN) *@
+                                <rect x="4" y="4" width="32" height="14" rx="3" 
+                                      fill="@(node.IsMaximizing ? "#34c759" : "#ff9500")" />
+                                <foreignObject x="4" y="4" width="32" height="14">
+                                    <div xmlns="http://www.w3.org/1999/xhtml" class="svg-text svg-badge-text">
+                                        @(node.IsMaximizing ? "MAX" : "MIN")
+                                    </div>
+                                </foreignObject>
+                                
+                                @* Move notation *@
+                                <foreignObject x="0" y="20" width="@NodeWidth" height="18">
+                                    <div xmlns="http://www.w3.org/1999/xhtml" class="svg-text svg-move-text">
+                                        @node.MoveNotation
+                                    </div>
+                                </foreignObject>
+                                
+                                @* Score *@
+                                @if (node.Score.HasValue) {
+                                    <foreignObject x="0" y="38" width="@NodeWidth" height="16">
+                                        <div xmlns="http://www.w3.org/1999/xhtml" class="svg-text svg-score-text">
+                                            @FormatScore(node.Score.Value)
+                                        </div>
+                                    </foreignObject>
+                                }
+                                
+                                @* Alpha/Beta values *@
+                                <foreignObject x="0" y="52" width="@NodeWidth" height="14">
+                                    <div xmlns="http://www.w3.org/1999/xhtml" class="svg-text svg-ab-text">
+                                        α:@FormatScore(node.Alpha) β:@FormatScore(node.Beta)
+                                    </div>
+                                </foreignObject>
+                                
+                                @* Pruned badge *@
+                                @if (node.IsPruned) {
+                                    <rect x="@(NodeWidth - 42)" y="4" width="38" height="14" rx="3" fill="#ff3b30" />
+                                    <foreignObject x="@(NodeWidth - 42)" y="4" width="38" height="14">
+                                        <div xmlns="http://www.w3.org/1999/xhtml" class="svg-text svg-badge-text svg-pruned-text">
+                                            PRUNED
+                                        </div>
+                                    </foreignObject>
+                                }
+                                
+                                @* Best move badge *@
+                                @if (node.IsBestMove && !node.IsPruned) {
+                                    <rect x="@(NodeWidth - 32)" y="4" width="28" height="14" rx="3" fill="#007aff" />
+                                    <foreignObject x="@(NodeWidth - 32)" y="4" width="28" height="14">
+                                        <div xmlns="http://www.w3.org/1999/xhtml" class="svg-text svg-badge-text">
+                                            BEST
+                                        </div>
+                                    </foreignObject>
+                                }
+                                
+                                @* Current node highlight *@
+                                @if (currentNode?.Id == node.Id) {
+                                    <rect x="-4" y="-4" 
+                                          width="@(NodeWidth + 8)" height="@(NodeHeight + 8)" 
+                                          rx="12" ry="12"
+                                          fill="none" 
+                                          stroke="#af52de" 
+                                          stroke-width="3"
+                                          stroke-dasharray="5,3" />
+                                }
+                            </g>
+                        }
+                    </svg>
+                </div>
+                
+                @* Insights and Statistics Panel *@
+                <div class="insights-panel">
+                    @{
+                        var stats = CalculateSearchStatistics();
+                    }
+                    
+                    <div class="insights-grid">
+                        @* Left side: How it works *@
+                        <div class="insight-card">
+                            <h4>How Alpha-Beta Pruning Works</h4>
+                            <div class="explanation-items">
+                                <div class="explanation-item">
+                                    <span class="exp-icon exp-max">MAX</span>
+                                    <span>Maximizing player seeks <strong>highest</strong> score</span>
+                                </div>
+                                <div class="explanation-item">
+                                    <span class="exp-icon exp-min">MIN</span>
+                                    <span>Minimizing player seeks <strong>lowest</strong> score</span>
+                                </div>
+                                <div class="explanation-item">
+                                    <span class="exp-icon exp-prune">✂</span>
+                                    <span>When β ≤ α, branches are <strong>pruned</strong></span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        @* Center: Complexity Analysis *@
+                        <div class="insight-card insight-card-math">
+                            <h4>Complexity Analysis</h4>
+                            <div class="math-equations">
+                                <div class="equation">
+                                    <span class="equation-label">Without pruning:</span>
+                                    <span class="equation-formula">O(b<sup>d</sup>) = O(@(stats.BranchingFactor.ToString("F1"))<sup>@SearchResult.SearchDepth</sup>)</span>
+                                    <span class="equation-result">≈ @stats.TheoreticalNodes.ToString("N0") nodes</span>
+                                </div>
+                                <div class="equation">
+                                    <span class="equation-label">With perfect α-β:</span>
+                                    <span class="equation-formula">O(b<sup>d/2</sup>) = O(@(stats.BranchingFactor.ToString("F1"))<sup>@((SearchResult.SearchDepth / 2.0).ToString("F1"))</sup>)</span>
+                                    <span class="equation-result">≈ @stats.OptimalNodes.ToString("N0") nodes</span>
+                                </div>
+                                <div class="equation equation-highlight">
+                                    <span class="equation-label">Actual result:</span>
+                                    <span class="equation-formula">Evaluated</span>
+                                    <span class="equation-result">@SearchResult.TotalNodesEvaluated.ToString("N0") nodes</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        @* Right side: Statistics *@
+                        <div class="insight-card">
+                            <h4>Search Statistics</h4>
+                            <div class="stat-rows">
+                                <div class="stat-row">
+                                    <span class="stat-name">Branching Factor (b)</span>
+                                    <span class="stat-val">@stats.BranchingFactor.ToString("F2")</span>
+                                </div>
+                                <div class="stat-row">
+                                    <span class="stat-name">Search Depth (d)</span>
+                                    <span class="stat-val">@SearchResult.SearchDepth</span>
+                                </div>
+                                <div class="stat-row">
+                                    <span class="stat-name">Nodes Evaluated</span>
+                                    <span class="stat-val">@SearchResult.TotalNodesEvaluated.ToString("N0")</span>
+                                </div>
+                                <div class="stat-row">
+                                    <span class="stat-name">Nodes Pruned</span>
+                                    <span class="stat-val stat-pruned">@SearchResult.NodesPruned.ToString("N0")</span>
+                                </div>
+                                <div class="stat-row">
+                                    <span class="stat-name">Total Cutoffs</span>
+                                    <span class="stat-val">@SearchResult.TotalCutoffs.ToString("N0")</span>
+                                </div>
+                                <div class="stat-row stat-row-highlight">
+                                    <span class="stat-name">Pruning Efficiency</span>
+                                    <span class="stat-val stat-efficiency">@stats.PruningEfficiency.ToString("F1")%</span>
+                                </div>
+                            </div>
+                        </div>
                     </div>
-                    <div class="node-content">
-                        <span class="node-type-badge @(node.IsMaximizing ? "max" : "min")">
-                            @(node.IsMaximizing ? "MAX" : "MIN")
-                        </span>
-                        <span class="node-move-name">@node.MoveNotation</span>
-                        @if (node.Score.HasValue) {
-                            <span class="node-score-value">@FormatScore(node.Score.Value)</span>
-                        }
-                        @if (node.IsPruned) {
-                            <span class="node-pruned-tag">PRUNED</span>
-                        }
-                        @if (node.IsBestMove) {
-                            <span class="node-best-tag">BEST</span>
-                        }
-                        <span class="node-ab-values">α:@FormatScore(node.Alpha) β:@FormatScore(node.Beta)</span>
-                        @if (item.HasChildren) {
-                            <span class="node-children-count">(@node.Children.Count children)</span>
+                    
+                    @* Bottom: Savings Summary *@
+                    <div class="savings-summary">
+                        <div class="savings-item">
+                            <span class="savings-icon">🚀</span>
+                            <div class="savings-text">
+                                <strong>@stats.SpeedupFactor.ToString("F1")x faster</strong> than naive minimax
+                            </div>
+                        </div>
+                        <div class="savings-item">
+                            <span class="savings-icon">💾</span>
+                            <div class="savings-text">
+                                <strong>@stats.NodesSaved.ToString("N0")</strong> nodes not evaluated
+                            </div>
+                        </div>
+                        @if (SearchResult.MoveOrderingEnabled) {
+                            <div class="savings-item">
+                                <span class="savings-icon">📊</span>
+                                <div class="savings-text">
+                                    <strong>@SearchResult.MoveOrderingEffectiveness.ToString("F0")%</strong> cutoffs from move ordering
+                                </div>
+                            </div>
                         }
                     </div>
                 </div>
-            }
-            
-            @if (displayNodes.Count >= maxRenderedNodes) {
-                <div class="truncation-notice">
-                    Showing @maxRenderedNodes of @GetTotalVisibleCount() nodes. Increase limit or use filters to see more.
-                </div>
-            }
-        </div>
+            </div>
+        } else {
+            @* Simplified tree view - list-based for performance *@
+            <div class="tree-list-container">
+                @{
+                    var displayNodes = GetDisplayNodes();
+                    visibleNodesCount = displayNodes.Count;
+                }
+                
+                @foreach (var item in displayNodes) {
+                    var node = item.Node;
+                    var isCurrent = currentNode?.Id == node.Id;
+                    var nodeClass = GetNodeClass(node, isCurrent);
+                    
+                    <div class="tree-node-row @nodeClass" style="padding-left: @(item.Depth * 24 + 12)px" @onclick="() => JumpToNode(node)">
+                        <div class="node-indent">
+                            @if (item.HasChildren) {
+                                <button class="expand-toggle" @onclick="() => ToggleExpand(node.Id)" @onclick:stopPropagation="true">
+                                    @(expandedNodes.Contains(node.Id) ? "−" : "+")
+                                </button>
+                            } else {
+                                <span class="expand-spacer"></span>
+                            }
+                            <span class="tree-line">@(item.IsLast ? "└" : "├")─</span>
+                        </div>
+                        <div class="node-content">
+                            <span class="node-type-badge @(node.IsMaximizing ? "max" : "min")">
+                                @(node.IsMaximizing ? "MAX" : "MIN")
+                            </span>
+                            <span class="node-move-name">@node.MoveNotation</span>
+                            @if (node.Score.HasValue) {
+                                <span class="node-score-value">@FormatScore(node.Score.Value)</span>
+                            }
+                            @if (node.IsPruned) {
+                                <span class="node-pruned-tag">PRUNED</span>
+                            }
+                            @if (node.IsBestMove) {
+                                <span class="node-best-tag">BEST</span>
+                            }
+                            <span class="node-ab-values">α:@FormatScore(node.Alpha) β:@FormatScore(node.Beta)</span>
+                            @if (item.HasChildren) {
+                                <span class="node-children-count">(@node.Children.Count children)</span>
+                            }
+                        </div>
+                    </div>
+                }
+                
+                @if (displayNodes.Count >= maxRenderedNodes) {
+                    <div class="truncation-notice">
+                        Showing @maxRenderedNodes of @GetTotalVisibleCount() nodes. Increase limit or use filters to see more.
+                    </div>
+                }
+            </div>
+        }
     }
 </div>
 
@@ -234,7 +507,7 @@
     [Parameter]
     public EventCallback OnClose { get; set; }
 
-    private enum ViewMode { BestPath, CurrentBranch, Evaluated }
+    private enum ViewMode { BestPath, CurrentBranch, Evaluated, TreeDiagram }
     private ViewMode viewMode = ViewMode.CurrentBranch;
     private int maxVisibleDepth = 3;
     private int maxRenderedNodes = 100;
@@ -519,6 +792,273 @@
         else if (node.IsMaximizing) classes.Add("maximizing");
         else classes.Add("minimizing");
         return string.Join(" ", classes);
+    }
+
+    // ============== Tree Diagram Methods ==============
+    
+    private record TreeDiagramNode(MiniMaxNode Node, double X, double Y, bool IsOnBestPath);
+    private record TreeDiagramEdge(MiniMaxNode Parent, MiniMaxNode Child, double X1, double Y1, double X2, double Y2, bool IsOnBestPath, bool IsPruned);
+
+    // Constants for tree layout
+    private const double NodeWidth = 100;
+    private const double NodeHeight = 70;
+    private const double VerticalSpacing = 150;
+    private const double HorizontalSpacing = 20;
+    private const double TreePadding = 50;
+
+    /// <summary>
+    /// Gets nodes optimized for tree diagram display - best path plus pruning examples.
+    /// Always includes the complete best path, plus additional nodes for context.
+    /// </summary>
+    private List<MiniMaxNode> GetTreeDiagramNodes() {
+        if (SearchResult == null) return new();
+        
+        var result = new Dictionary<int, MiniMaxNode>(); // Use ID as key to avoid duplicates
+        var root = SearchResult.RootNode;
+        
+        // FIRST: Always add the complete best path - this is the most important!
+        var bestPathIds = new HashSet<int>();
+        var current = root;
+        result[root.Id] = root;
+        bestPathIds.Add(root.Id);
+        
+        while (current.Children.Any()) {
+            var best = current.Children.FirstOrDefault(c => c.IsBestMove);
+            if (best == null) break;
+            result[best.Id] = best;
+            bestPathIds.Add(best.Id);
+            current = best;
+        }
+        
+        // SECOND: BFS from root to add additional nodes for context (siblings, pruned branches)
+        var queue = new Queue<MiniMaxNode>();
+        queue.Enqueue(root);
+        
+        while (queue.Count > 0) {
+            var node = queue.Dequeue();
+            
+            // Stop expanding if we've reached max depth
+            if (node.Depth >= maxVisibleDepth) continue;
+            
+            // Add children: ALWAYS include best path nodes, then pruned, then others up to limit
+            var bestPathChild = node.Children.FirstOrDefault(c => c.IsBestMove);
+            var otherChildren = node.Children
+                .Where(c => !c.IsBestMove) // Exclude best path (already added)
+                .OrderByDescending(c => c.IsPruned) // Pruned nodes are interesting
+                .ThenBy(c => c.VisitOrder)
+                .Take(4) // Max 4 additional children per node
+                .ToList();
+            
+            // Add best path child first (if not already added)
+            if (bestPathChild != null && !result.ContainsKey(bestPathChild.Id)) {
+                result[bestPathChild.Id] = bestPathChild;
+                queue.Enqueue(bestPathChild);
+            }
+            
+            // Add other children for context
+            foreach (var child in otherChildren) {
+                if (!result.ContainsKey(child.Id)) {
+                    result[child.Id] = child;
+                    queue.Enqueue(child);
+                }
+            }
+        }
+        
+        return result.Values.OrderBy(n => n.Depth).ThenBy(n => n.VisitOrder).ToList();
+    }
+
+    /// <summary>
+    /// Calculates the layout positions for all nodes in the tree diagram.
+    /// Simple grid-based layout: nodes at each depth are spread horizontally.
+    /// </summary>
+    private (List<TreeDiagramNode> nodes, List<TreeDiagramEdge> edges, double width, double height) CalculateTreeLayout() {
+        var diagramNodes = new List<TreeDiagramNode>();
+        var diagramEdges = new List<TreeDiagramEdge>();
+        
+        if (SearchResult == null) return (diagramNodes, diagramEdges, 0, 0);
+        
+        var nodesToDisplay = GetTreeDiagramNodes();
+        if (!nodesToDisplay.Any()) return (diagramNodes, diagramEdges, 0, 0);
+        
+        var nodeIds = new HashSet<int>(nodesToDisplay.Select(n => n.Id));
+        var bestPathIds = GetBestPathNodeIds();
+        
+        // Group nodes by their actual depth
+        var nodesByDepth = nodesToDisplay
+            .GroupBy(n => n.Depth)
+            .OrderBy(g => g.Key)
+            .ToList();
+        
+        // Get min depth to normalize Y positions
+        int minDepth = nodesByDepth.First().Key;
+        
+        // Simple layout: spread nodes horizontally at each depth level
+        var positions = new Dictionary<int, (double x, double y)>();
+        
+        foreach (var depthGroup in nodesByDepth) {
+            int depth = depthGroup.Key;
+            var nodesAtDepth = depthGroup.OrderBy(n => n.VisitOrder).ToList();
+            
+            // Y position based on depth
+            double y = TreePadding + (depth - minDepth) * VerticalSpacing;
+            
+            // Spread nodes horizontally with spacing
+            for (int i = 0; i < nodesAtDepth.Count; i++) {
+                var node = nodesAtDepth[i];
+                double x = TreePadding + i * (NodeWidth + HorizontalSpacing);
+                positions[node.Id] = (x, y);
+            }
+        }
+        
+        // Calculate dimensions
+        double maxX = positions.Values.Any() ? positions.Values.Max(p => p.x) + NodeWidth + TreePadding : TreePadding * 2;
+        double maxY = positions.Values.Any() ? positions.Values.Max(p => p.y) + NodeHeight + TreePadding : TreePadding * 2;
+        
+        // Create diagram nodes
+        foreach (var node in nodesToDisplay) {
+            if (positions.TryGetValue(node.Id, out var pos)) {
+                var isOnBestPath = bestPathIds.Contains(node.Id);
+                diagramNodes.Add(new TreeDiagramNode(node, pos.x, pos.y, isOnBestPath));
+            }
+        }
+        
+        // Create edges - connect each node to its parent if both are in our display set
+        foreach (var node in nodesToDisplay) {
+            if (node.Parent != null && 
+                positions.TryGetValue(node.Parent.Id, out var parentPos) && 
+                positions.TryGetValue(node.Id, out var childPos) &&
+                nodeIds.Contains(node.Parent.Id)) {
+                
+                var isOnBestPath = bestPathIds.Contains(node.Id) && bestPathIds.Contains(node.Parent.Id);
+                diagramEdges.Add(new TreeDiagramEdge(
+                    node.Parent, 
+                    node, 
+                    parentPos.x + NodeWidth / 2, 
+                    parentPos.y + NodeHeight,
+                    childPos.x + NodeWidth / 2, 
+                    childPos.y,
+                    isOnBestPath,
+                    node.IsPruned
+                ));
+            }
+        }
+        
+        return (diagramNodes, diagramEdges, maxX, maxY);
+    }
+
+    /// <summary>
+    /// Gets the IDs of nodes on the best path.
+    /// </summary>
+    private HashSet<int> GetBestPathNodeIds() {
+        var ids = new HashSet<int>();
+        if (SearchResult == null) return ids;
+        
+        var current = SearchResult.RootNode;
+        ids.Add(current.Id);
+        
+        while (current.Children.Any()) {
+            var best = current.Children.FirstOrDefault(c => c.IsBestMove);
+            if (best == null) {
+                best = current.IsMaximizing 
+                    ? current.Children.OrderByDescending(c => c.Score ?? int.MinValue).FirstOrDefault()
+                    : current.Children.OrderBy(c => c.Score ?? int.MaxValue).FirstOrDefault();
+            }
+            if (best == null) break;
+            ids.Add(best.Id);
+            current = best;
+        }
+        
+        return ids;
+    }
+
+    /// <summary>
+    /// Gets the CSS class for a tree diagram node.
+    /// </summary>
+    private string GetTreeNodeClass(MiniMaxNode node, bool isOnBestPath) {
+        var classes = new List<string> { "tree-node" };
+        
+        if (node.IsMaximizing) classes.Add("tree-node-max");
+        else classes.Add("tree-node-min");
+        
+        if (isOnBestPath) classes.Add("tree-node-best-path");
+        if (node.IsPruned) classes.Add("tree-node-pruned");
+        if (node.IsBestMove) classes.Add("tree-node-best");
+        if (currentNode?.Id == node.Id) classes.Add("tree-node-current");
+        
+        return string.Join(" ", classes);
+    }
+
+    /// <summary>
+    /// Gets the CSS class for a tree diagram edge.
+    /// </summary>
+    private string GetTreeEdgeClass(TreeDiagramEdge edge) {
+        var classes = new List<string> { "tree-edge" };
+        
+        if (edge.IsOnBestPath) classes.Add("tree-edge-best-path");
+        if (edge.IsPruned) classes.Add("tree-edge-pruned");
+        
+        return string.Join(" ", classes);
+    }
+
+    /// <summary>
+    /// Statistics record for the insights panel.
+    /// </summary>
+    private record SearchStatistics(
+        double BranchingFactor,
+        long TheoreticalNodes,
+        long OptimalNodes,
+        double PruningEfficiency,
+        double SpeedupFactor,
+        long NodesSaved
+    );
+
+    /// <summary>
+    /// Calculates search statistics for the insights panel.
+    /// </summary>
+    private SearchStatistics CalculateSearchStatistics() {
+        if (SearchResult == null) {
+            return new SearchStatistics(0, 0, 0, 0, 1, 0);
+        }
+
+        // Calculate average branching factor from actual data
+        var nodesWithChildren = SearchResult.NodesInVisitOrder
+            .Where(n => n.Children.Any())
+            .ToList();
+        
+        double branchingFactor = nodesWithChildren.Any() 
+            ? nodesWithChildren.Average(n => n.Children.Count) 
+            : 20; // Default chess branching factor estimate
+        
+        // Theoretical nodes without pruning: b^d
+        int depth = SearchResult.SearchDepth;
+        long theoreticalNodes = (long)Math.Pow(branchingFactor, depth);
+        
+        // Optimal nodes with perfect alpha-beta pruning: b^(d/2) * 2 (approximately)
+        long optimalNodes = (long)(Math.Pow(branchingFactor, depth / 2.0) * 2);
+        
+        // Pruning efficiency: percentage of theoretical nodes that were NOT evaluated
+        double pruningEfficiency = theoreticalNodes > 0 
+            ? (1.0 - (double)SearchResult.TotalNodesEvaluated / theoreticalNodes) * 100 
+            : 0;
+        pruningEfficiency = Math.Max(0, Math.Min(99.99, pruningEfficiency)); // Clamp to reasonable range
+        
+        // Speedup factor: how many times faster than naive
+        double speedupFactor = SearchResult.TotalNodesEvaluated > 0 
+            ? (double)theoreticalNodes / SearchResult.TotalNodesEvaluated 
+            : 1;
+        speedupFactor = Math.Min(speedupFactor, 99999); // Cap for display
+        
+        // Nodes saved
+        long nodesSaved = Math.Max(0, theoreticalNodes - SearchResult.TotalNodesEvaluated);
+        
+        return new SearchStatistics(
+            branchingFactor,
+            theoreticalNodes,
+            optimalNodes,
+            pruningEfficiency,
+            speedupFactor,
+            nodesSaved
+        );
     }
 }
 
@@ -830,5 +1370,443 @@
         font-size: 12px;
         background: #f5f5f7;
         border-top: 1px solid #e5e5e5;
+    }
+
+    /* ============== Tree Diagram Styles ============== */
+    
+    .tree-diagram-container {
+        flex: 1;
+        display: flex;
+        flex-direction: column;
+        background: white;
+        overflow: hidden;
+    }
+
+    .tree-diagram-info {
+        padding: 12px 24px;
+        background: linear-gradient(135deg, #e3f2fd 0%, #f3e5f5 100%);
+        border-bottom: 1px solid #e5e5e5;
+    }
+
+    .tree-diagram-info p {
+        margin: 0;
+        font-size: 13px;
+        color: #1d1d1f;
+        line-height: 1.5;
+    }
+
+    .tree-diagram-scroll {
+        flex: 1;
+        overflow: auto;
+        padding: 20px;
+        background: 
+            linear-gradient(90deg, rgba(0,0,0,0.03) 1px, transparent 1px),
+            linear-gradient(rgba(0,0,0,0.03) 1px, transparent 1px);
+        background-size: 20px 20px;
+    }
+
+    .tree-svg {
+        display: block;
+        min-width: 100%;
+    }
+
+    /* Tree edges (connections) */
+    .tree-edge {
+        fill: none;
+        stroke: #c7c7cc;
+        stroke-width: 2;
+        transition: stroke 0.2s, stroke-width 0.2s;
+    }
+
+    .tree-edge-best-path {
+        stroke: #007aff;
+        stroke-width: 3;
+    }
+
+    .tree-edge-pruned {
+        stroke: #ff3b30;
+        stroke-width: 2;
+        stroke-dasharray: 8, 4;
+        opacity: 0.7;
+    }
+
+    /* Tree nodes */
+    .tree-node {
+        transition: filter 0.15s;
+    }
+
+    .tree-node:hover {
+        filter: drop-shadow(0 4px 12px rgba(0,0,0,0.25));
+    }
+
+    .tree-node-max rect:first-of-type {
+        fill: #e8f5e9;
+    }
+
+    .tree-node-min rect:first-of-type {
+        fill: #fff3e0;
+    }
+
+    .tree-node-best-path rect:first-of-type {
+        stroke: #007aff !important;
+        stroke-width: 3 !important;
+    }
+
+    .tree-node-pruned {
+        opacity: 0.7;
+    }
+
+    .tree-node-pruned rect:first-of-type {
+        fill: url(#prunedPattern) !important;
+        stroke: #8e8e93 !important;
+    }
+
+    .tree-node-current {
+        animation: pulse-current 1.5s ease-in-out infinite;
+    }
+
+    @@keyframes pulse-current {
+        0%, 100% { filter: drop-shadow(0 0 8px rgba(175, 82, 222, 0.5)); }
+        50% { filter: drop-shadow(0 0 16px rgba(175, 82, 222, 0.8)); }
+    }
+
+    /* Pruning indicator */
+    .prune-indicator {
+        animation: prune-appear 0.3s ease-out;
+    }
+
+    @@keyframes prune-appear {
+        from { transform: scale(0); opacity: 0; }
+        to { transform: scale(1); opacity: 1; }
+    }
+
+    /* Pruning explanation panel */
+    .pruning-explanation {
+        padding: 16px 24px;
+        background: #f5f5f7;
+        border-top: 1px solid #e5e5e5;
+    }
+
+    .explanation-section h4 {
+        margin: 0 0 12px 0;
+        font-size: 14px;
+        font-weight: 600;
+        color: #1d1d1f;
+    }
+
+    .explanation-items {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .explanation-item {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+        font-size: 13px;
+        color: #1d1d1f;
+        font-weight: 400;
+    }
+
+    .explanation-item strong {
+        font-weight: 500;
+    }
+
+    .exp-icon {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 32px;
+        height: 24px;
+        padding: 0 8px;
+        border-radius: 6px;
+        font-size: 10px;
+        font-weight: 600;
+        letter-spacing: 0.3px;
+    }
+
+    .exp-icon.exp-max {
+        background: rgba(52, 199, 89, 0.12);
+        color: #248a3d;
+    }
+
+    .exp-icon.exp-min {
+        background: rgba(255, 149, 0, 0.12);
+        color: #c93400;
+    }
+
+    .exp-icon.exp-alpha {
+        background: rgba(0, 122, 255, 0.12);
+        color: #0066cc;
+        font-family: serif;
+        font-style: italic;
+    }
+
+    .exp-icon.exp-beta {
+        background: rgba(88, 86, 214, 0.12);
+        color: #4b49ab;
+        font-family: serif;
+        font-style: italic;
+    }
+
+    .exp-icon.exp-prune {
+        background: rgba(255, 59, 48, 0.12);
+        color: #d70015;
+        font-size: 14px;
+    }
+
+    /* SVG text styling via foreignObject */
+    .svg-text {
+        user-select: none;
+        pointer-events: none;
+        text-align: center;
+        line-height: 1;
+        white-space: nowrap;
+        overflow: hidden;
+    }
+
+    .svg-badge-text {
+        font-size: 8px;
+        font-weight: bold;
+        color: white;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        height: 100%;
+    }
+
+    .svg-pruned-text {
+        font-size: 7px;
+    }
+
+    .svg-move-text {
+        font-size: 11px;
+        font-weight: 600;
+        color: #1d1d1f;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        height: 100%;
+    }
+
+    .svg-score-text {
+        font-size: 12px;
+        font-weight: bold;
+        color: #007aff;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        height: 100%;
+    }
+
+    .svg-ab-text {
+        font-size: 8px;
+        font-family: monospace;
+        color: #86868b;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        height: 100%;
+    }
+
+    .svg-prune-icon {
+        font-size: 14px;
+        font-weight: bold;
+        color: white;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 100%;
+        height: 100%;
+    }
+
+    /* Insights Panel Styles - Apple/Tesla Minimalist */
+    .insights-panel {
+        padding: 24px 32px;
+        background: #fafafa;
+        border-top: 1px solid #e5e5e5;
+    }
+
+    .insights-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 20px;
+        margin-bottom: 20px;
+    }
+
+    .insight-card {
+        background: white;
+        border-radius: 16px;
+        padding: 24px;
+        border: 1px solid rgba(0,0,0,0.04);
+    }
+
+    .insight-card h4 {
+        margin: 0 0 20px 0;
+        font-size: 11px;
+        font-weight: 500;
+        color: #86868b;
+        text-transform: uppercase;
+        letter-spacing: 0.8px;
+    }
+
+    .insight-card-math {
+        background: white;
+    }
+
+    .insight-card-math h4 {
+        color: #86868b;
+    }
+
+    .math-equations {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+    }
+
+    .equation {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+
+    .equation-highlight {
+        padding: 12px 14px;
+        background: rgba(0, 122, 255, 0.06);
+        border-radius: 10px;
+        margin-top: 4px;
+    }
+
+    .equation-label {
+        font-size: 10px;
+        color: #86868b;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        font-weight: 500;
+    }
+
+    .equation-formula {
+        font-size: 13px;
+        font-family: 'SF Mono', 'Monaco', 'Menlo', monospace;
+        color: #1d1d1f;
+        font-weight: 400;
+    }
+
+    .equation-result {
+        font-size: 18px;
+        font-weight: 600;
+        color: #1d1d1f;
+        letter-spacing: -0.3px;
+    }
+
+    .stat-rows {
+        display: flex;
+        flex-direction: column;
+        gap: 0;
+    }
+
+    .stat-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 10px 0;
+        border-bottom: 1px solid rgba(0,0,0,0.04);
+    }
+
+    .stat-row:last-child {
+        border-bottom: none;
+    }
+
+    .stat-row-highlight {
+        background: transparent;
+        margin: 8px 0 0 0;
+        padding: 12px 0 0 0;
+        border-radius: 0;
+        border-bottom: none;
+        border-top: 1px solid rgba(0,0,0,0.06);
+    }
+
+    .stat-name {
+        font-size: 13px;
+        color: #86868b;
+        font-weight: 400;
+    }
+
+    .stat-val {
+        font-size: 15px;
+        font-weight: 600;
+        color: #1d1d1f;
+        font-family: 'SF Mono', 'Monaco', 'Menlo', monospace;
+        letter-spacing: -0.3px;
+    }
+
+    .stat-pruned {
+        color: #ff3b30;
+    }
+
+    .stat-efficiency {
+        color: #34c759;
+        font-size: 20px;
+        font-weight: 600;
+    }
+
+    .savings-summary {
+        display: flex;
+        justify-content: center;
+        gap: 48px;
+        padding: 20px 24px;
+        background: white;
+        border-radius: 16px;
+        border: 1px solid rgba(0,0,0,0.04);
+    }
+
+    .savings-item {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+
+    .savings-icon {
+        font-size: 20px;
+        opacity: 0.8;
+    }
+
+    .savings-text {
+        font-size: 14px;
+        color: #86868b;
+        font-weight: 400;
+    }
+
+    .savings-text strong {
+        color: #1d1d1f;
+        font-size: 17px;
+        font-weight: 600;
+        letter-spacing: -0.3px;
+    }
+
+    /* Responsive adjustments */
+    @@media (max-width: 1200px) {
+        .insights-grid {
+            grid-template-columns: 1fr;
+        }
+        
+        .savings-summary {
+            flex-direction: column;
+            gap: 16px;
+            align-items: flex-start;
+            padding: 20px;
+        }
+    }
+
+    @@media (max-width: 768px) {
+        .explanation-items {
+            flex-direction: column;
+            gap: 8px;
+        }
+        
+        .tree-diagram-scroll {
+            padding: 10px;
+        }
     }
 </style>

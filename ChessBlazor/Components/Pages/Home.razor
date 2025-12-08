@@ -13,6 +13,7 @@
         ("Very Random AI", color => new VeryRandomMovePlayer(color)),
         ("Greedy AI", color => new GreedyPlayer(color)),
         ("MiniMax AI with Material Eval", color => new MiniMaxPlayer(color, new MaterialEvaluation())),
+        ("MiniMax AI with Material Eval + Ordering", color => new MiniMaxPlayerOrdering(color, new MaterialEvaluation())),
         ("MiniMax AI with Material Eval (stats)", color => new MiniMaxPlayerWithStatistics(color, new MaterialEvaluation())),
         ("MiniMax AI with MatMob Eval", color => new MiniMaxPlayer(color, new MaterialMobilityFunction()))
     };
@@ -56,8 +57,8 @@
                     <label class="player-label">
                         <span class="label-text">White Player</span>
                     </label>
-                    <select class="player-select" @bind="selectedWhiteLabel" @bind:after="OnPlayerSelectionChanged">
-                        <option value="">Choose player type...</option>
+                    <select class="player-select @(string.IsNullOrEmpty(selectedWhiteLabel) ? "placeholder" : "")" @bind="selectedWhiteLabel" @bind:after="OnPlayerSelectionChanged">
+                        <option value="">Select player...</option>
                         @foreach (var option in playerTypes)
                         {
                             <option value="@option.Label">@option.Label</option>
@@ -71,8 +72,8 @@
                     <label class="player-label">
                         <span class="label-text">Black Player</span>
                     </label>
-                    <select class="player-select" @bind="selectedBlackLabel" @bind:after="OnPlayerSelectionChanged">
-                        <option value="">Choose player type...</option>
+                    <select class="player-select @(string.IsNullOrEmpty(selectedBlackLabel) ? "placeholder" : "")" @bind="selectedBlackLabel" @bind:after="OnPlayerSelectionChanged">
+                        <option value="">Select player...</option>
                         @foreach (var option in playerTypes)
                         {
                             <option value="@option.Label">@option.Label</option>
@@ -161,42 +162,65 @@
 
         .player-selection-group {
             flex: 1;
-            min-width: 180px;
+            min-width: 200px;
         }
 
         .player-label {
             display: block;
             text-align: left;
-            margin-bottom: 0.5rem;
+            margin-bottom: 0.625rem;
         }
 
         .label-text {
-            font-size: 0.875rem;
-            font-weight: 500;
-            color: #6b7280;
+            font-size: 0.8125rem;
+            font-weight: 600;
+            color: #86868b;
+            text-transform: uppercase;
+            letter-spacing: 0.02em;
+            font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', sans-serif;
         }
 
         .player-select {
             width: 100%;
-            padding: 0.625rem 0.75rem;
-            font-size: 0.95rem;
-            border: 1px solid #d1d5db;
-            border-radius: 6px;
-            background: white;
+            padding: 0.875rem 1.25rem;
+            padding-right: 2.5rem;
+            font-size: 1rem;
+            font-weight: 400;
+            letter-spacing: -0.01em;
+            border: none;
+            border-radius: 12px;
+            background: #f5f5f7;
             cursor: pointer;
-            transition: all 0.2s ease;
-            font-family: inherit;
-            color: #374151;
+            transition: all 0.2s cubic-bezier(0.25, 0.1, 0.25, 1);
+            font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', sans-serif;
+            color: #1d1d1f;
+            appearance: none;
+            -webkit-appearance: none;
+            -moz-appearance: none;
+            background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='%2386868b' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+            background-repeat: no-repeat;
+            background-position: right 1rem center;
+            background-size: 16px;
         }
 
         .player-select:hover {
-            border-color: #9ca3af;
+            background: #e8e8ed;
         }
 
         .player-select:focus {
             outline: none;
-            border-color: #6366f1;
-            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+            background: #e8e8ed;
+            box-shadow: 0 0 0 4px rgba(0, 125, 250, 0.15);
+        }
+
+        .player-select option {
+            padding: 0.75rem 1rem;
+            background: white;
+            color: #1d1d1f;
+        }
+
+        .player-select.placeholder {
+            color: #86868b;
         }
 
         .vs-divider {
@@ -215,30 +239,35 @@
         }
 
         .go-button {
-            background-color: #4f46e5;
+            background: #1d1d1f;
             color: white;
             border: none;
-            padding: 0.75rem 2rem;
+            padding: 0.9375rem 2.5rem;
             font-size: 1rem;
             font-weight: 500;
-            border-radius: 6px;
+            letter-spacing: -0.01em;
+            border-radius: 12px;
             cursor: pointer;
-            transition: all 0.2s ease;
-            font-family: inherit;
+            transition: all 0.2s cubic-bezier(0.25, 0.1, 0.25, 1);
+            font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', sans-serif;
+            min-width: 160px;
         }
 
         .go-button:hover:not(:disabled) {
-            background-color: #4338ca;
+            background: #424245;
+            transform: scale(1.02);
         }
 
         .go-button:active:not(:disabled) {
-            background-color: #3730a3;
+            background: #1d1d1f;
+            transform: scale(0.98);
         }
 
         .go-button:disabled {
-            background-color: #e5e7eb;
-            color: #9ca3af;
+            background: #f5f5f7;
+            color: #86868b;
             cursor: not-allowed;
+            transform: none;
         }
 
         @@media (max-width: 600px) {

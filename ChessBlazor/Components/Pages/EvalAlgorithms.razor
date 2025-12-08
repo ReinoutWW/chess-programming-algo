@@ -689,7 +689,7 @@
             var whitePlayer = gameNum % 2 == 1 ? algo1.Factory(PieceColor.White) : algo2.Factory(PieceColor.White);
             var blackPlayer = gameNum % 2 == 1 ? algo2.Factory(PieceColor.Black) : algo1.Factory(PieceColor.Black);
 
-            var game = new Game(whitePlayer, blackPlayer, 0);
+            var game = new BitBoardGame(whitePlayer, blackPlayer, 0);
             await game.Start();
 
             while (!game.IsFinished())
