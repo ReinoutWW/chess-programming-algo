@@ -15,7 +15,7 @@ public class MiniMaxPlayer(PieceColor color, IEvaluationFunction evaluationFunct
     private readonly IEvaluationFunction _evaluationFunction = evaluationFunction ?? new MaterialEvaluation();
     public bool IsAI() => true;
     public Task<Move> GetMove(IGame game) {
-        var bestMove = Minimax(game, 4, int.MinValue, int.MaxValue, true);
+        var bestMove = Minimax(game, 5, int.MinValue, int.MaxValue, true);
         return Task.FromResult(bestMove.move);
     }
 
