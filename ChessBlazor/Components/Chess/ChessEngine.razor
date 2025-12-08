@@ -4,6 +4,7 @@
 
 @using ChessBlazor.Components.Chess.Player
 @using global::Chess.Programming.Ago.ChessEngines
+@inject IJSRuntime JS
 
 <div class="chess-engine-wrapper">
     <div class="chess-game-section">
@@ -937,6 +938,9 @@
     private bool isCalculatingHint = false;
     private bool showHintVisualization = false;
     private int hintSearchDepth = 3;
+    
+    // Sound system state
+    private int lastCapturedCount = 0;
 
     [Parameter]
     public IPlayer WhitePlayer { get; set; } = new HumanBlazorPlayer(PieceColor.White);
@@ -984,6 +988,9 @@
     protected override async Task OnAfterRenderAsync(bool firstRender) {
         if(firstRender) {
             game.NextMoveHandler = async () => {
+                // Play move sound
+                await PlayMoveSoundAsync();
+                
                 // Clear any active hint when a move is made
                 currentHint = null;
                 hintService.ClearHint();
@@ -994,8 +1001,57 @@
                     lastSearchResult = visualizablePlayer.GetLastSearchResult();
                 }
                 
+                // Play check sound if applicable
+                if (game.IsChecked(game.GetCurrentPlayer().Color)) {
+                    await PlayCheckSoundAsync();
+                }
+                
+                // Play game over sound if applicable
+                if (game.IsFinished()) {
+                    await PlayGameOverSoundAsync();
+                }
+                
                 StateHasChanged(); 
             };
+        }
+    }
+    
+    private async Task PlayMoveSoundAsync() {
+        try {
+            // Check if the last move was a capture by looking at captured pieces count change
+            // For simplicity, we'll play the capture sound if there's a piece at the destination
+            var lastMove = game.GetLastMove();
+            if (lastMove != null) {
+                // Play capture sound if pieces were captured (we can check the captured pieces list)
+                var capturedCount = game.GetCapturedPieces().Count;
+                if (capturedCount > lastCapturedCount) {
+                    await JS.InvokeVoidAsync("ChessSounds.playCaptureSound");
+                    lastCapturedCount = capturedCount;
+                } else {
+                    await JS.InvokeVoidAsync("ChessSounds.playMoveSound");
+                }
+            } else {
+                await JS.InvokeVoidAsync("ChessSounds.playMoveSound");
+            }
+        } catch {
+            // Ignore sound errors - audio may not be available
+        }
+    }
+    
+    private async Task PlayCheckSoundAsync() {
+        try {
+            await JS.InvokeVoidAsync("ChessSounds.playCheckSound");
+        } catch {
+            // Ignore sound errors
+        }
+    }
+    
+    private async Task PlayGameOverSoundAsync() {
+        try {
+            var isWin = game.Winner != null;
+            await JS.InvokeVoidAsync("ChessSounds.playGameOverSound", isWin);
+        } catch {
+            // Ignore sound errors
         }
     }
 
@@ -1063,6 +1119,7 @@
 
     private async Task StartGame() {
         isGameStarted = true;
+        lastCapturedCount = 0; // Reset capture tracking for sound effects
         StateHasChanged();
         await game.Start();
     }

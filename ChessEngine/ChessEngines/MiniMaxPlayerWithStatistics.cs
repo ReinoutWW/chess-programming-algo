@@ -393,7 +393,7 @@ public class MiniMaxPlayerWithStatistics : IPlayer, IVisualizablePlayer {
     private void MarkBestMovePath(MiniMaxNode root, Move bestMove) {
         if (bestMove == null) return;
 
-        // Find the child with the best move
+        // Find the child with the best move at root level
         var bestChild = root.Children.FirstOrDefault(c => 
             c.Move != null && 
             c.Move.From == bestMove.From && 
@@ -401,6 +401,33 @@ public class MiniMaxPlayerWithStatistics : IPlayer, IVisualizablePlayer {
         
         if (bestChild != null) {
             bestChild.IsBestMove = true;
+            // Recursively mark the best path through the entire tree
+            MarkBestPathRecursive(bestChild);
+        }
+    }
+
+    private void MarkBestPathRecursive(MiniMaxNode node) {
+        if (!node.Children.Any()) return;
+
+        // Find the best child based on score and whether it's maximizing or minimizing
+        MiniMaxNode bestChild;
+        if (node.IsMaximizing) {
+            // Maximizing: pick highest score
+            bestChild = node.Children
+                .Where(c => c.Score.HasValue)
+                .OrderByDescending(c => c.Score!.Value)
+                .FirstOrDefault();
+        } else {
+            // Minimizing: pick lowest score
+            bestChild = node.Children
+                .Where(c => c.Score.HasValue)
+                .OrderBy(c => c.Score!.Value)
+                .FirstOrDefault();
+        }
+
+        if (bestChild != null) {
+            bestChild.IsBestMove = true;
+            MarkBestPathRecursive(bestChild);
         }
     }
 

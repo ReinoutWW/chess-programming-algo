@@ -339,32 +339,108 @@
                     </svg>
                 </div>
                 
-                @* Pruning explanation panel *@
-                <div class="pruning-explanation">
-                    <div class="explanation-section">
-                        <h4>How Alpha-Beta Pruning Works</h4>
-                        <div class="explanation-items">
-                            <div class="explanation-item">
-                                <span class="exp-icon exp-max">MAX</span>
-                                <span>Maximizing player tries to get the <strong>highest</strong> score</span>
-                            </div>
-                            <div class="explanation-item">
-                                <span class="exp-icon exp-min">MIN</span>
-                                <span>Minimizing player tries to get the <strong>lowest</strong> score</span>
-                            </div>
-                            <div class="explanation-item">
-                                <span class="exp-icon exp-alpha">α</span>
-                                <span>Alpha = best score MAX can guarantee (starts at -∞)</span>
-                            </div>
-                            <div class="explanation-item">
-                                <span class="exp-icon exp-beta">β</span>
-                                <span>Beta = best score MIN can guarantee (starts at +∞)</span>
-                            </div>
-                            <div class="explanation-item">
-                                <span class="exp-icon exp-prune">✂</span>
-                                <span>When β ≤ α, remaining branches are <strong>pruned</strong> (not explored)</span>
+                @* Insights and Statistics Panel *@
+                <div class="insights-panel">
+                    @{
+                        var stats = CalculateSearchStatistics();
+                    }
+                    
+                    <div class="insights-grid">
+                        @* Left side: How it works *@
+                        <div class="insight-card">
+                            <h4>How Alpha-Beta Pruning Works</h4>
+                            <div class="explanation-items">
+                                <div class="explanation-item">
+                                    <span class="exp-icon exp-max">MAX</span>
+                                    <span>Maximizing player seeks <strong>highest</strong> score</span>
+                                </div>
+                                <div class="explanation-item">
+                                    <span class="exp-icon exp-min">MIN</span>
+                                    <span>Minimizing player seeks <strong>lowest</strong> score</span>
+                                </div>
+                                <div class="explanation-item">
+                                    <span class="exp-icon exp-prune">✂</span>
+                                    <span>When β ≤ α, branches are <strong>pruned</strong></span>
+                                </div>
                             </div>
                         </div>
+                        
+                        @* Center: Complexity Analysis *@
+                        <div class="insight-card insight-card-math">
+                            <h4>Complexity Analysis</h4>
+                            <div class="math-equations">
+                                <div class="equation">
+                                    <span class="equation-label">Without pruning:</span>
+                                    <span class="equation-formula">O(b<sup>d</sup>) = O(@(stats.BranchingFactor.ToString("F1"))<sup>@SearchResult.SearchDepth</sup>)</span>
+                                    <span class="equation-result">≈ @stats.TheoreticalNodes.ToString("N0") nodes</span>
+                                </div>
+                                <div class="equation">
+                                    <span class="equation-label">With perfect α-β:</span>
+                                    <span class="equation-formula">O(b<sup>d/2</sup>) = O(@(stats.BranchingFactor.ToString("F1"))<sup>@((SearchResult.SearchDepth / 2.0).ToString("F1"))</sup>)</span>
+                                    <span class="equation-result">≈ @stats.OptimalNodes.ToString("N0") nodes</span>
+                                </div>
+                                <div class="equation equation-highlight">
+                                    <span class="equation-label">Actual result:</span>
+                                    <span class="equation-formula">Evaluated</span>
+                                    <span class="equation-result">@SearchResult.TotalNodesEvaluated.ToString("N0") nodes</span>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        @* Right side: Statistics *@
+                        <div class="insight-card">
+                            <h4>Search Statistics</h4>
+                            <div class="stat-rows">
+                                <div class="stat-row">
+                                    <span class="stat-name">Branching Factor (b)</span>
+                                    <span class="stat-val">@stats.BranchingFactor.ToString("F2")</span>
+                                </div>
+                                <div class="stat-row">
+                                    <span class="stat-name">Search Depth (d)</span>
+                                    <span class="stat-val">@SearchResult.SearchDepth</span>
+                                </div>
+                                <div class="stat-row">
+                                    <span class="stat-name">Nodes Evaluated</span>
+                                    <span class="stat-val">@SearchResult.TotalNodesEvaluated.ToString("N0")</span>
+                                </div>
+                                <div class="stat-row">
+                                    <span class="stat-name">Nodes Pruned</span>
+                                    <span class="stat-val stat-pruned">@SearchResult.NodesPruned.ToString("N0")</span>
+                                </div>
+                                <div class="stat-row">
+                                    <span class="stat-name">Total Cutoffs</span>
+                                    <span class="stat-val">@SearchResult.TotalCutoffs.ToString("N0")</span>
+                                </div>
+                                <div class="stat-row stat-row-highlight">
+                                    <span class="stat-name">Pruning Efficiency</span>
+                                    <span class="stat-val stat-efficiency">@stats.PruningEfficiency.ToString("F1")%</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    @* Bottom: Savings Summary *@
+                    <div class="savings-summary">
+                        <div class="savings-item">
+                            <span class="savings-icon">🚀</span>
+                            <div class="savings-text">
+                                <strong>@stats.SpeedupFactor.ToString("F1")x faster</strong> than naive minimax
+                            </div>
+                        </div>
+                        <div class="savings-item">
+                            <span class="savings-icon">💾</span>
+                            <div class="savings-text">
+                                <strong>@stats.NodesSaved.ToString("N0")</strong> nodes not evaluated
+                            </div>
+                        </div>
+                        @if (SearchResult.MoveOrderingEnabled) {
+                            <div class="savings-item">
+                                <span class="savings-icon">📊</span>
+                                <div class="savings-text">
+                                    <strong>@SearchResult.MoveOrderingEffectiveness.ToString("F0")%</strong> cutoffs from move ordering
+                                </div>
+                            </div>
+                        }
                     </div>
                 </div>
             </div>
@@ -732,7 +808,7 @@
 
     /// <summary>
     /// Gets nodes optimized for tree diagram display - best path plus pruning examples.
-    /// Simple BFS from root, collecting nodes up to maxVisibleDepth.
+    /// Always includes the complete best path, plus additional nodes for context.
     /// </summary>
     private List<MiniMaxNode> GetTreeDiagramNodes() {
         if (SearchResult == null) return new();
@@ -740,10 +816,23 @@
         var result = new Dictionary<int, MiniMaxNode>(); // Use ID as key to avoid duplicates
         var root = SearchResult.RootNode;
         
-        // BFS from root to collect all nodes up to maxVisibleDepth
+        // FIRST: Always add the complete best path - this is the most important!
+        var bestPathIds = new HashSet<int>();
+        var current = root;
+        result[root.Id] = root;
+        bestPathIds.Add(root.Id);
+        
+        while (current.Children.Any()) {
+            var best = current.Children.FirstOrDefault(c => c.IsBestMove);
+            if (best == null) break;
+            result[best.Id] = best;
+            bestPathIds.Add(best.Id);
+            current = best;
+        }
+        
+        // SECOND: BFS from root to add additional nodes for context (siblings, pruned branches)
         var queue = new Queue<MiniMaxNode>();
         queue.Enqueue(root);
-        result[root.Id] = root;
         
         while (queue.Count > 0) {
             var node = queue.Dequeue();
@@ -751,16 +840,23 @@
             // Stop expanding if we've reached max depth
             if (node.Depth >= maxVisibleDepth) continue;
             
-            // Add children (limit to prevent explosion)
-            // Prioritize: best move first, then pruned (to show pruning), then by visit order
-            var childrenToAdd = node.Children
-                .OrderByDescending(c => c.IsBestMove)
-                .ThenByDescending(c => c.IsPruned)
+            // Add children: ALWAYS include best path nodes, then pruned, then others up to limit
+            var bestPathChild = node.Children.FirstOrDefault(c => c.IsBestMove);
+            var otherChildren = node.Children
+                .Where(c => !c.IsBestMove) // Exclude best path (already added)
+                .OrderByDescending(c => c.IsPruned) // Pruned nodes are interesting
                 .ThenBy(c => c.VisitOrder)
-                .Take(5) // Max 5 children per node for readability
+                .Take(4) // Max 4 additional children per node
                 .ToList();
             
-            foreach (var child in childrenToAdd) {
+            // Add best path child first (if not already added)
+            if (bestPathChild != null && !result.ContainsKey(bestPathChild.Id)) {
+                result[bestPathChild.Id] = bestPathChild;
+                queue.Enqueue(bestPathChild);
+            }
+            
+            // Add other children for context
+            foreach (var child in otherChildren) {
                 if (!result.ContainsKey(child.Id)) {
                     result[child.Id] = child;
                     queue.Enqueue(child);
@@ -902,6 +998,67 @@
         if (edge.IsPruned) classes.Add("tree-edge-pruned");
         
         return string.Join(" ", classes);
+    }
+
+    /// <summary>
+    /// Statistics record for the insights panel.
+    /// </summary>
+    private record SearchStatistics(
+        double BranchingFactor,
+        long TheoreticalNodes,
+        long OptimalNodes,
+        double PruningEfficiency,
+        double SpeedupFactor,
+        long NodesSaved
+    );
+
+    /// <summary>
+    /// Calculates search statistics for the insights panel.
+    /// </summary>
+    private SearchStatistics CalculateSearchStatistics() {
+        if (SearchResult == null) {
+            return new SearchStatistics(0, 0, 0, 0, 1, 0);
+        }
+
+        // Calculate average branching factor from actual data
+        var nodesWithChildren = SearchResult.NodesInVisitOrder
+            .Where(n => n.Children.Any())
+            .ToList();
+        
+        double branchingFactor = nodesWithChildren.Any() 
+            ? nodesWithChildren.Average(n => n.Children.Count) 
+            : 20; // Default chess branching factor estimate
+        
+        // Theoretical nodes without pruning: b^d
+        int depth = SearchResult.SearchDepth;
+        long theoreticalNodes = (long)Math.Pow(branchingFactor, depth);
+        
+        // Optimal nodes with perfect alpha-beta pruning: b^(d/2) * 2 (approximately)
+        long optimalNodes = (long)(Math.Pow(branchingFactor, depth / 2.0) * 2);
+        
+        // Pruning efficiency: percentage of theoretical nodes that were NOT evaluated
+        double pruningEfficiency = theoreticalNodes > 0 
+            ? (1.0 - (double)SearchResult.TotalNodesEvaluated / theoreticalNodes) * 100 
+            : 0;
+        pruningEfficiency = Math.Max(0, Math.Min(99.99, pruningEfficiency)); // Clamp to reasonable range
+        
+        // Speedup factor: how many times faster than naive
+        double speedupFactor = SearchResult.TotalNodesEvaluated > 0 
+            ? (double)theoreticalNodes / SearchResult.TotalNodesEvaluated 
+            : 1;
+        speedupFactor = Math.Min(speedupFactor, 99999); // Cap for display
+        
+        // Nodes saved
+        long nodesSaved = Math.Max(0, theoreticalNodes - SearchResult.TotalNodesEvaluated);
+        
+        return new SearchStatistics(
+            branchingFactor,
+            theoreticalNodes,
+            optimalNodes,
+            pruningEfficiency,
+            speedupFactor,
+            nodesSaved
+        );
     }
 }
 
@@ -1339,57 +1496,63 @@
 
     .explanation-items {
         display: flex;
-        flex-wrap: wrap;
-        gap: 16px;
+        flex-direction: column;
+        gap: 12px;
     }
 
     .explanation-item {
         display: flex;
         align-items: center;
-        gap: 8px;
-        font-size: 12px;
+        gap: 12px;
+        font-size: 13px;
         color: #1d1d1f;
+        font-weight: 400;
+    }
+
+    .explanation-item strong {
+        font-weight: 500;
     }
 
     .exp-icon {
         display: inline-flex;
         align-items: center;
         justify-content: center;
-        min-width: 28px;
-        height: 20px;
-        padding: 0 6px;
-        border-radius: 4px;
+        min-width: 32px;
+        height: 24px;
+        padding: 0 8px;
+        border-radius: 6px;
         font-size: 10px;
-        font-weight: 700;
+        font-weight: 600;
+        letter-spacing: 0.3px;
     }
 
     .exp-icon.exp-max {
-        background: #34c759;
-        color: white;
+        background: rgba(52, 199, 89, 0.12);
+        color: #248a3d;
     }
 
     .exp-icon.exp-min {
-        background: #ff9500;
-        color: white;
+        background: rgba(255, 149, 0, 0.12);
+        color: #c93400;
     }
 
     .exp-icon.exp-alpha {
-        background: #007aff;
-        color: white;
+        background: rgba(0, 122, 255, 0.12);
+        color: #0066cc;
         font-family: serif;
         font-style: italic;
     }
 
     .exp-icon.exp-beta {
-        background: #5856d6;
-        color: white;
+        background: rgba(88, 86, 214, 0.12);
+        color: #4b49ab;
         font-family: serif;
         font-style: italic;
     }
 
     .exp-icon.exp-prune {
-        background: #ff3b30;
-        color: white;
+        background: rgba(255, 59, 48, 0.12);
+        color: #d70015;
         font-size: 14px;
     }
 
@@ -1458,7 +1621,184 @@
         height: 100%;
     }
 
+    /* Insights Panel Styles - Apple/Tesla Minimalist */
+    .insights-panel {
+        padding: 24px 32px;
+        background: #fafafa;
+        border-top: 1px solid #e5e5e5;
+    }
+
+    .insights-grid {
+        display: grid;
+        grid-template-columns: repeat(3, 1fr);
+        gap: 20px;
+        margin-bottom: 20px;
+    }
+
+    .insight-card {
+        background: white;
+        border-radius: 16px;
+        padding: 24px;
+        border: 1px solid rgba(0,0,0,0.04);
+    }
+
+    .insight-card h4 {
+        margin: 0 0 20px 0;
+        font-size: 11px;
+        font-weight: 500;
+        color: #86868b;
+        text-transform: uppercase;
+        letter-spacing: 0.8px;
+    }
+
+    .insight-card-math {
+        background: white;
+    }
+
+    .insight-card-math h4 {
+        color: #86868b;
+    }
+
+    .math-equations {
+        display: flex;
+        flex-direction: column;
+        gap: 16px;
+    }
+
+    .equation {
+        display: flex;
+        flex-direction: column;
+        gap: 4px;
+    }
+
+    .equation-highlight {
+        padding: 12px 14px;
+        background: rgba(0, 122, 255, 0.06);
+        border-radius: 10px;
+        margin-top: 4px;
+    }
+
+    .equation-label {
+        font-size: 10px;
+        color: #86868b;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        font-weight: 500;
+    }
+
+    .equation-formula {
+        font-size: 13px;
+        font-family: 'SF Mono', 'Monaco', 'Menlo', monospace;
+        color: #1d1d1f;
+        font-weight: 400;
+    }
+
+    .equation-result {
+        font-size: 18px;
+        font-weight: 600;
+        color: #1d1d1f;
+        letter-spacing: -0.3px;
+    }
+
+    .stat-rows {
+        display: flex;
+        flex-direction: column;
+        gap: 0;
+    }
+
+    .stat-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 10px 0;
+        border-bottom: 1px solid rgba(0,0,0,0.04);
+    }
+
+    .stat-row:last-child {
+        border-bottom: none;
+    }
+
+    .stat-row-highlight {
+        background: transparent;
+        margin: 8px 0 0 0;
+        padding: 12px 0 0 0;
+        border-radius: 0;
+        border-bottom: none;
+        border-top: 1px solid rgba(0,0,0,0.06);
+    }
+
+    .stat-name {
+        font-size: 13px;
+        color: #86868b;
+        font-weight: 400;
+    }
+
+    .stat-val {
+        font-size: 15px;
+        font-weight: 600;
+        color: #1d1d1f;
+        font-family: 'SF Mono', 'Monaco', 'Menlo', monospace;
+        letter-spacing: -0.3px;
+    }
+
+    .stat-pruned {
+        color: #ff3b30;
+    }
+
+    .stat-efficiency {
+        color: #34c759;
+        font-size: 20px;
+        font-weight: 600;
+    }
+
+    .savings-summary {
+        display: flex;
+        justify-content: center;
+        gap: 48px;
+        padding: 20px 24px;
+        background: white;
+        border-radius: 16px;
+        border: 1px solid rgba(0,0,0,0.04);
+    }
+
+    .savings-item {
+        display: flex;
+        align-items: center;
+        gap: 12px;
+    }
+
+    .savings-icon {
+        font-size: 20px;
+        opacity: 0.8;
+    }
+
+    .savings-text {
+        font-size: 14px;
+        color: #86868b;
+        font-weight: 400;
+    }
+
+    .savings-text strong {
+        color: #1d1d1f;
+        font-size: 17px;
+        font-weight: 600;
+        letter-spacing: -0.3px;
+    }
+
     /* Responsive adjustments */
+    @@media (max-width: 1200px) {
+        .insights-grid {
+            grid-template-columns: 1fr;
+        }
+        
+        .savings-summary {
+            flex-direction: column;
+            gap: 16px;
+            align-items: flex-start;
+            padding: 20px;
+        }
+    }
+
     @@media (max-width: 768px) {
         .explanation-items {
             flex-direction: column;
