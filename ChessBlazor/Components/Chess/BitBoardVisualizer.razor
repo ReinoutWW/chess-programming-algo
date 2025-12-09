@@ -426,7 +426,7 @@
     public IVisualizedBoard? Board { get; set; }
 
     [Parameter]
-    public EventCallback<ulong?> OnBitboardSelected { get; set; }
+    public EventCallback<(ulong? Bitboard, string Name)> OnBitboardSelected { get; set; }
 
     [Parameter]
     public EventCallback<bool> OnAttackModeToggled { get; set; }
@@ -449,7 +449,7 @@
 
     private async Task SelectBitboard(ulong bitboard, string name) {
         ActiveBitboardName = name;
-        await OnBitboardSelected.InvokeAsync(bitboard);
+        await OnBitboardSelected.InvokeAsync((bitboard, name));
     }
 
     private async Task SelectOccupied() {
@@ -469,19 +469,20 @@
         var attacks = Board.GetAllAttacksForColor(color);
         var name = color == PieceColor.White ? "All White Attacks" : "All Black Attacks";
         ActiveBitboardName = name;
-        await OnBitboardSelected.InvokeAsync(attacks);
+        await OnBitboardSelected.InvokeAsync((attacks, name));
     }
 
     private async Task SelectPieceBitboard(PieceColor color, PieceType pieceType) {
         if (Board == null) return;
         var bitboard = Board.GetPieceBitboard(color, pieceType);
-        ActiveBitboardName = $"{(color == PieceColor.White ? "W" : "B")} {pieceType}";
-        await OnBitboardSelected.InvokeAsync(bitboard);
+        var name = $"{(color == PieceColor.White ? "W" : "B")} {pieceType}";
+        ActiveBitboardName = name;
+        await OnBitboardSelected.InvokeAsync((bitboard, name));
     }
 
     private async Task ClearSelection() {
         ActiveBitboardName = "";
-        await OnBitboardSelected.InvokeAsync(null);
+        await OnBitboardSelected.InvokeAsync((null, ""));
     }
 
     private async Task OnAttackModeChanged() {
