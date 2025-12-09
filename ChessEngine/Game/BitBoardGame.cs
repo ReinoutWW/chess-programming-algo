@@ -210,6 +210,8 @@ public class BitBoardGame : IGame {
         board.LoadForsythEdwardsNotation(notation);
     }
 
+    public IVisualizedBoard? GetVisualizedBoard() => board;
+
     public IGame Clone(bool simulated = false) {
         return new BitBoardGame(whitePlayer, blackPlayer, _delayPerMoveInMilliseconds) {
             board = (IVisualizedBoard)board.Clone(),

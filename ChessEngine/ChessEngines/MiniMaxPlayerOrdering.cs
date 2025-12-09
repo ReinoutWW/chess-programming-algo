@@ -4,10 +4,12 @@ using Chess.Programming.Ago.Core;
 using Chess.Programming.Ago.Game;
 using System.Threading.Tasks;
 using Chess.Programming.Ago.ChessEngines.Evaluations;
+using Chess.Programming.Ago.ChessEngines.Ordering;
 
 public class MiniMaxPlayerOrdering(PieceColor color, IEvaluationFunction evaluationFunction) : IPlayer {
     public PieceColor Color => color;
     private readonly IEvaluationFunction _evaluationFunction = evaluationFunction ?? new MaterialEvaluation();
+    private readonly IMoveOrdering _moveOrdering = new MVVLVAOrdering();
     public bool IsAI() => true;
     public Task<Move> GetMove(IGame game) {
         var bestMove = Minimax(game, 5, int.MinValue, int.MaxValue, true);
@@ -135,22 +137,6 @@ public class MiniMaxPlayerOrdering(PieceColor color, IEvaluationFunction evaluat
     /// <param name="game">The game to use to find the killer-first moves.</param>
     /// <returns>The ordered list of moves.</returns>
     private List<Move> OrderMoves(List<Move> moves, IGame game) {
-        var killerMoves = FindKillerMoves(moves, game);
-
-        return moves.OrderByDescending(m => killerMoves.Contains(m)).ToList();
-    }
-
-    private List<Move> FindKillerMoves(List<Move> moves, IGame game) {
-        var killerMoves = new List<Move>();
-        foreach (var move in moves)
-        {
-            var capturedPiece = game.GetPieceAtPosition(move.To);
-            var movingPiece = game.GetPieceAtPosition(move.From);
-            if (capturedPiece != null && movingPiece != null)
-            {
-                killerMoves.Add(move);
-            }
-        }
-        return killerMoves;
+        return _moveOrdering.OrderMoves(moves, game);
     }
 }

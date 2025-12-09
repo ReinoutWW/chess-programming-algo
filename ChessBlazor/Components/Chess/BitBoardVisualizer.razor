@@ -1,0 +1,515 @@
+@namespace ChessBlazor.Components.Chess
+
+@using global::Chess.Programming.Ago.Core
+@using global::Chess.Programming.Ago.Pieces
+
+<div class="bitboard-visualizer @(IsExpanded ? "expanded" : "collapsed")">
+    <div class="visualizer-header" @onclick="ToggleExpanded">
+        <div class="header-title">
+            <span class="header-icon">@(IsExpanded ? "▼" : "▶")</span>
+            <span>Bitboard Visualizer</span>
+        </div>
+        <div class="header-badge">64-bit</div>
+    </div>
+
+    @if (IsExpanded) {
+        <div class="visualizer-content">
+            @* Binary Display *@
+            @if (ActiveBitboard.HasValue) {
+                <div class="binary-display">
+                    <div class="binary-label">@ActiveBitboardName</div>
+                    <div class="binary-string">
+                        @for (int i = 63; i >= 0; i--) {
+                            var bit = (ActiveBitboard.Value >> i) & 1;
+                            <span class="bit @(bit == 1 ? "bit-set" : "bit-unset")">@bit</span>
+                            @if (i % 8 == 0 && i > 0) {
+                                <span class="bit-separator"></span>
+                            }
+                        }
+                    </div>
+                    <div class="binary-hex">
+                        @($"0x{ActiveBitboard.Value:X16}")
+                    </div>
+                </div>
+            }
+
+            @* Magic Bitboard Info (for sliding pieces) *@
+            @if (MagicInfo != null) {
+                <div class="magic-info">
+                    <div class="magic-title">Magic Bitboard Lookup</div>
+                    <div class="magic-details">
+                        <div class="magic-row">
+                            <span class="magic-label">Square:</span>
+                            <span class="magic-value">@MagicInfo.Square (@GetSquareName(MagicInfo.Square))</span>
+                        </div>
+                        <div class="magic-row">
+                            <span class="magic-label">Magic:</span>
+                            <span class="magic-value mono">@($"0x{MagicInfo.Magic:X16}")</span>
+                        </div>
+                        <div class="magic-row">
+                            <span class="magic-label">Shift:</span>
+                            <span class="magic-value">@MagicInfo.Shift</span>
+                        </div>
+                        <div class="magic-row">
+                            <span class="magic-label">Index:</span>
+                            <span class="magic-value highlight">@MagicInfo.Index</span>
+                        </div>
+                    </div>
+                    <div class="magic-formula">
+                        index = (blockers × magic) >> @MagicInfo.Shift
+                    </div>
+                </div>
+            }
+
+            @* Bitboard Selection *@
+            <div class="bitboard-categories">
+                <div class="category">
+                    <div class="category-title">Board State</div>
+                    <div class="category-buttons">
+                        <button class="bb-btn @(ActiveBitboardName == "Occupied" ? "active" : "")" 
+                                @onclick="@(() => SelectOccupied())">
+                            Occupied
+                        </button>
+                        <button class="bb-btn @(ActiveBitboardName == "White Pieces" ? "active" : "")"
+                                @onclick="@(() => SelectWhitePieces())">
+                            White
+                        </button>
+                        <button class="bb-btn @(ActiveBitboardName == "Black Pieces" ? "active" : "")"
+                                @onclick="@(() => SelectBlackPieces())">
+                            Black
+                        </button>
+                    </div>
+                </div>
+
+                <div class="category">
+                    <div class="category-title">White Pieces</div>
+                    <div class="category-buttons">
+                        @foreach (var pieceType in Enum.GetValues<PieceType>()) {
+                            var name = $"W {pieceType}";
+                            <button class="bb-btn @(ActiveBitboardName == name ? "active" : "")"
+                                    @onclick="() => SelectPieceBitboard(PieceColor.White, pieceType)">
+                                @GetPieceSymbol(PieceColor.White, pieceType)
+                            </button>
+                        }
+                    </div>
+                </div>
+
+                <div class="category">
+                    <div class="category-title">Black Pieces</div>
+                    <div class="category-buttons">
+                        @foreach (var pieceType in Enum.GetValues<PieceType>()) {
+                            var name = $"B {pieceType}";
+                            <button class="bb-btn @(ActiveBitboardName == name ? "active" : "")"
+                                    @onclick="() => SelectPieceBitboard(PieceColor.Black, pieceType)">
+                                @GetPieceSymbol(PieceColor.Black, pieceType)
+                            </button>
+                        }
+                    </div>
+                </div>
+
+                <div class="category">
+                    <div class="category-title">Attack Visualization</div>
+                    <div class="attack-mode-toggle">
+                        <label class="toggle-label">
+                            <input type="checkbox" @bind="AttackModeEnabled" @bind:after="OnAttackModeChanged" />
+                            <span class="toggle-text">Click piece to see attacks</span>
+                        </label>
+                    </div>
+                    @if (AttackModeEnabled) {
+                        <div class="attack-hint">
+                            Click any piece on the board to visualize its attack pattern
+                        </div>
+                    }
+                </div>
+
+                <div class="category">
+                    <div class="category-title">All Attacks by Color</div>
+                    <div class="category-buttons">
+                        <button class="bb-btn @(ActiveBitboardName == "All White Attacks" ? "active" : "")"
+                                @onclick="@(() => SelectAllAttacks(PieceColor.White))">
+                            ♔ All White Attacks
+                        </button>
+                        <button class="bb-btn @(ActiveBitboardName == "All Black Attacks" ? "active" : "")"
+                                @onclick="@(() => SelectAllAttacks(PieceColor.Black))">
+                            ♚ All Black Attacks
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            @* Clear Button *@
+            @if (ActiveBitboard.HasValue) {
+                <button class="clear-btn" @onclick="ClearSelection">
+                    Clear Visualization
+                </button>
+            }
+        </div>
+    }
+</div>
+
+<style>
+    /* Apple/Tesla Minimalist Style */
+    .bitboard-visualizer {
+        background: #ffffff;
+        border-radius: 16px;
+        overflow: hidden;
+        font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', sans-serif;
+        box-shadow: 0 2px 20px rgba(0, 0, 0, 0.08);
+        width: 320px;
+        transition: all 0.3s ease;
+        border: 1px solid rgba(0, 0, 0, 0.06);
+    }
+
+    .bitboard-visualizer.collapsed {
+        width: 280px;
+    }
+
+    .visualizer-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 14px 18px;
+        background: #f5f5f7;
+        cursor: pointer;
+        user-select: none;
+        border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+    }
+
+    .visualizer-header:hover {
+        background: #ebebed;
+    }
+
+    .header-title {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        color: #1d1d1f;
+        font-weight: 600;
+        font-size: 14px;
+    }
+
+    .header-icon {
+        font-size: 10px;
+        color: #86868b;
+    }
+
+    .header-badge {
+        background: #007aff;
+        color: white;
+        padding: 3px 10px;
+        border-radius: 10px;
+        font-size: 10px;
+        font-weight: 600;
+        letter-spacing: 0.5px;
+    }
+
+    .visualizer-content {
+        padding: 16px;
+        display: flex;
+        flex-direction: column;
+        gap: 14px;
+    }
+
+    .binary-display {
+        background: #f5f5f7;
+        border-radius: 12px;
+        padding: 14px;
+        border: 1px solid rgba(0, 0, 0, 0.04);
+    }
+
+    .binary-label {
+        color: #007aff;
+        font-size: 10px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        margin-bottom: 10px;
+    }
+
+    .binary-string {
+        font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+        font-size: 11px;
+        line-height: 1.6;
+        word-break: break-all;
+        color: #86868b;
+    }
+
+    .bit {
+        transition: color 0.2s;
+    }
+
+    .bit-set {
+        color: #007aff;
+        font-weight: bold;
+    }
+
+    .bit-unset {
+        color: #d2d2d7;
+    }
+
+    .bit-separator {
+        display: inline-block;
+        width: 4px;
+    }
+
+    .binary-hex {
+        margin-top: 10px;
+        font-family: 'SF Mono', 'Fira Code', monospace;
+        font-size: 11px;
+        color: #86868b;
+    }
+
+    .magic-info {
+        background: #f5f5f7;
+        border-radius: 12px;
+        padding: 14px;
+        border: 1px solid #007aff;
+        border-left: 3px solid #007aff;
+    }
+
+    .magic-title {
+        color: #007aff;
+        font-size: 10px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        margin-bottom: 12px;
+    }
+
+    .magic-details {
+        display: flex;
+        flex-direction: column;
+        gap: 8px;
+    }
+
+    .magic-row {
+        display: flex;
+        justify-content: space-between;
+        font-size: 11px;
+    }
+
+    .magic-label {
+        color: #86868b;
+    }
+
+    .magic-value {
+        color: #1d1d1f;
+    }
+
+    .magic-value.mono {
+        font-family: 'SF Mono', monospace;
+        font-size: 10px;
+    }
+
+    .magic-value.highlight {
+        color: #007aff;
+        font-weight: 600;
+    }
+
+    .magic-formula {
+        margin-top: 12px;
+        padding: 10px;
+        background: #ffffff;
+        border-radius: 8px;
+        font-family: 'SF Mono', monospace;
+        font-size: 10px;
+        color: #86868b;
+        text-align: center;
+        border: 1px solid rgba(0, 0, 0, 0.06);
+    }
+
+    .bitboard-categories {
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+    }
+
+    .category {
+        background: #f5f5f7;
+        border-radius: 12px;
+        padding: 12px;
+    }
+
+    .category-title {
+        color: #86868b;
+        font-size: 10px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        margin-bottom: 10px;
+    }
+
+    .category-buttons {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 6px;
+    }
+
+    .bb-btn {
+        padding: 7px 12px;
+        font-size: 11px;
+        border: 1px solid rgba(0, 0, 0, 0.08);
+        border-radius: 8px;
+        background: #ffffff;
+        color: #1d1d1f;
+        cursor: pointer;
+        transition: all 0.2s;
+        font-weight: 500;
+    }
+
+    .bb-btn:hover {
+        background: #f5f5f7;
+        border-color: rgba(0, 0, 0, 0.12);
+    }
+
+    .bb-btn.active {
+        background: #007aff;
+        color: white;
+        border-color: #007aff;
+    }
+
+    .attack-mode-toggle {
+        margin-bottom: 10px;
+    }
+
+    .toggle-label {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+        cursor: pointer;
+    }
+
+    .toggle-label input[type="checkbox"] {
+        width: 18px;
+        height: 18px;
+        accent-color: #007aff;
+    }
+
+    .toggle-text {
+        color: #1d1d1f;
+        font-size: 13px;
+        font-weight: 500;
+    }
+
+    .attack-hint {
+        font-size: 11px;
+        color: #86868b;
+        font-style: normal;
+        padding: 10px;
+        background: #ffffff;
+        border-radius: 8px;
+        text-align: center;
+        border: 1px solid rgba(0, 0, 0, 0.04);
+    }
+
+    .clear-btn {
+        width: 100%;
+        padding: 12px;
+        background: transparent;
+        border: 1px solid #007aff;
+        border-radius: 10px;
+        color: #007aff;
+        font-size: 13px;
+        font-weight: 500;
+        cursor: pointer;
+        transition: all 0.2s;
+    }
+
+    .clear-btn:hover {
+        background: #007aff;
+        color: white;
+    }
+</style>
+
+@code {
+    [Parameter]
+    public IVisualizedBoard? Board { get; set; }
+
+    [Parameter]
+    public EventCallback<ulong?> OnBitboardSelected { get; set; }
+
+    [Parameter]
+    public EventCallback<bool> OnAttackModeToggled { get; set; }
+
+    [Parameter]
+    public MagicBitboardInfo? MagicInfo { get; set; }
+
+    [Parameter]
+    public ulong? ActiveBitboard { get; set; }
+
+    [Parameter]
+    public string ActiveBitboardName { get; set; } = "";
+
+    public bool IsExpanded { get; set; } = true;
+    public bool AttackModeEnabled { get; set; } = false;
+
+    private void ToggleExpanded() {
+        IsExpanded = !IsExpanded;
+    }
+
+    private async Task SelectBitboard(ulong bitboard, string name) {
+        ActiveBitboardName = name;
+        await OnBitboardSelected.InvokeAsync(bitboard);
+    }
+
+    private async Task SelectOccupied() {
+        await SelectBitboard(Board?.OccupiedSquares ?? 0, "Occupied");
+    }
+
+    private async Task SelectWhitePieces() {
+        await SelectBitboard(Board?.WhitePieces ?? 0, "White Pieces");
+    }
+
+    private async Task SelectBlackPieces() {
+        await SelectBitboard(Board?.BlackPieces ?? 0, "Black Pieces");
+    }
+
+    private async Task SelectAllAttacks(PieceColor color) {
+        if (Board == null) return;
+        var attacks = Board.GetAllAttacksForColor(color);
+        var name = color == PieceColor.White ? "All White Attacks" : "All Black Attacks";
+        ActiveBitboardName = name;
+        await OnBitboardSelected.InvokeAsync(attacks);
+    }
+
+    private async Task SelectPieceBitboard(PieceColor color, PieceType pieceType) {
+        if (Board == null) return;
+        var bitboard = Board.GetPieceBitboard(color, pieceType);
+        ActiveBitboardName = $"{(color == PieceColor.White ? "W" : "B")} {pieceType}";
+        await OnBitboardSelected.InvokeAsync(bitboard);
+    }
+
+    private async Task ClearSelection() {
+        ActiveBitboardName = "";
+        await OnBitboardSelected.InvokeAsync(null);
+    }
+
+    private async Task OnAttackModeChanged() {
+        await OnAttackModeToggled.InvokeAsync(AttackModeEnabled);
+    }
+
+    private string GetPieceSymbol(PieceColor color, PieceType type) {
+        return (color, type) switch {
+            (PieceColor.White, PieceType.King) => "♔",
+            (PieceColor.White, PieceType.Queen) => "♕",
+            (PieceColor.White, PieceType.Rook) => "♖",
+            (PieceColor.White, PieceType.Bishop) => "♗",
+            (PieceColor.White, PieceType.Knight) => "♘",
+            (PieceColor.White, PieceType.Pawn) => "♙",
+            (PieceColor.Black, PieceType.King) => "♚",
+            (PieceColor.Black, PieceType.Queen) => "♛",
+            (PieceColor.Black, PieceType.Rook) => "♜",
+            (PieceColor.Black, PieceType.Bishop) => "♝",
+            (PieceColor.Black, PieceType.Knight) => "♞",
+            (PieceColor.Black, PieceType.Pawn) => "♟",
+            _ => "?"
+        };
+    }
+
+    private string GetSquareName(int square) {
+        char file = (char)('a' + (square % 8));
+        int rank = (square / 8) + 1;
+        return $"{file}{rank}";
+    }
+}
+
