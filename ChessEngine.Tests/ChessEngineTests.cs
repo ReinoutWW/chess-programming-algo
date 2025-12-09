@@ -216,4 +216,63 @@ public class ChessEngineTests
 
         Assert.Equal(20, whiteMoves.Count);
     }
+
+    [Fact]
+    public async Task ThreefoldRepetition_ShouldEndGameInDraw()
+    {
+        var game = new BitBoardGame(new DummyPlayer(PieceColor.White), new DummyPlayer(PieceColor.Black));
+        await game.Start();
+
+        // Move knights back and forth to create threefold repetition
+        // Position 1: Starting position (recorded at start)
+        
+        // White knight g1 -> f3
+        await game.DoMove(new Move(new Position(0, 6), new Position(2, 5)));
+        // Black knight g8 -> f6
+        await game.DoMove(new Move(new Position(7, 6), new Position(5, 5)));
+        
+        // White knight f3 -> g1 (back to start)
+        await game.DoMove(new Move(new Position(2, 5), new Position(0, 6)));
+        // Black knight f6 -> g8 (back to start)
+        await game.DoMove(new Move(new Position(5, 5), new Position(7, 6)));
+        // Position 1 repeated (2nd time)
+
+        // White knight g1 -> f3
+        await game.DoMove(new Move(new Position(0, 6), new Position(2, 5)));
+        // Black knight g8 -> f6
+        await game.DoMove(new Move(new Position(7, 6), new Position(5, 5)));
+        
+        // White knight f3 -> g1 (back to start)
+        await game.DoMove(new Move(new Position(2, 5), new Position(0, 6)));
+        // Black knight f6 -> g8 (back to start)
+        await game.DoMove(new Move(new Position(5, 5), new Position(7, 6)));
+        // Position 1 repeated (3rd time) -> Draw!
+
+        Assert.True(game.IsFinished());
+        Assert.True(game.IsDraw());
+        Assert.Null(game.Winner);
+        Assert.Equal("Threefold repetition", game.GetGameEndReason());
+    }
+
+    [Fact]
+    public async Task ThreefoldRepetition_ShouldNotTriggerBeforeThirdOccurrence()
+    {
+        var game = new BitBoardGame(new DummyPlayer(PieceColor.White), new DummyPlayer(PieceColor.Black));
+        await game.Start();
+
+        // Move knights back and forth - only 2 repetitions
+        // White knight g1 -> f3
+        await game.DoMove(new Move(new Position(0, 6), new Position(2, 5)));
+        // Black knight g8 -> f6
+        await game.DoMove(new Move(new Position(7, 6), new Position(5, 5)));
+        
+        // White knight f3 -> g1
+        await game.DoMove(new Move(new Position(2, 5), new Position(0, 6)));
+        // Black knight f6 -> g8
+        await game.DoMove(new Move(new Position(5, 5), new Position(7, 6)));
+        // Position repeated 2nd time - game should NOT be over
+
+        Assert.False(game.IsFinished());
+        Assert.False(game.IsDraw());
+    }
 }

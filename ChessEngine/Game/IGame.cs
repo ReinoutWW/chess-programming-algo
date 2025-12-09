@@ -46,4 +46,10 @@ public interface IGame {
     public void LoadForsythEdwardsNotation(string notation);
 
     bool IsValidMove(Move move);
+    
+    /// <summary>
+    /// Gets the visualized board for bitboard visualization purposes.
+    /// Returns null if the game doesn't use a visualizable board.
+    /// </summary>
+    IVisualizedBoard? GetVisualizedBoard();
 }

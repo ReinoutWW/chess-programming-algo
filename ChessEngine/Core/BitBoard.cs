@@ -508,7 +508,7 @@ public class BitBoard : IVisualizedBoard {
         ROOK_ATTACKS[position] = new ulong[1 << bitCount];
 
         for (int j = 0; j < blockers.Length; j++) {
-            int index = (int)((blockers[j] * ROOK_MAGICS[position]) >> ROOK_SHIFTS[position]);
+            int index = BitBoardExtensions.GetMagicIndex(blockers[j], ROOK_MAGICS[position], ROOK_SHIFTS[position]);
             ROOK_ATTACKS[position][index] = attacks[j];
         }
     }
@@ -540,7 +540,7 @@ public class BitBoard : IVisualizedBoard {
         BISHOP_ATTACKS[position] = new ulong[1 << bitCount];
 
         for (int j = 0; j < blockers.Length; j++) {
-            int index = (int)((blockers[j] * BISHOP_MAGICS[position]) >> BISHOP_SHIFTS[position]);
+            int index = BitBoardExtensions.GetMagicIndex(blockers[j], BISHOP_MAGICS[position], BISHOP_SHIFTS[position]);
             BISHOP_ATTACKS[position][index] = attacks[j];
         }
     }
@@ -554,7 +554,7 @@ public class BitBoard : IVisualizedBoard {
     private static ulong GetBishopAttacks(int position, ulong blocker) {
         var relevantBlocker = blocker & BISHOP_MASKS[position];
 
-        int index = (int)((relevantBlocker * BISHOP_MAGICS[position]) >> BISHOP_SHIFTS[position]);
+        int index = BitBoardExtensions.GetMagicIndex(relevantBlocker, BISHOP_MAGICS[position], BISHOP_SHIFTS[position]);
         return BISHOP_ATTACKS[position][index];
     }
 
@@ -579,7 +579,7 @@ public class BitBoard : IVisualizedBoard {
     private static ulong GetRookAttacks(int square, ulong blocker) {
         var relevantBlocker = blocker & ROOK_MASKS[square];
 
-        int index = (int)((relevantBlocker * ROOK_MAGICS[square]) >> ROOK_SHIFTS[square]);
+        int index = BitBoardExtensions.GetMagicIndex(relevantBlocker, ROOK_MAGICS[square], ROOK_SHIFTS[square]);
         return ROOK_ATTACKS[square][index];
     }
 
@@ -859,7 +859,6 @@ public class BitBoard : IVisualizedBoard {
             }
         }
 
-        // Generate castling moves
         GenerateCastlingMoves(color, kingCopy, moves);
     }
 
@@ -869,53 +868,69 @@ public class BitBoard : IVisualizedBoard {
         int kingSquare = BitBoardExtensions.PopLsb(ref king);
         var kingPos = new Position(kingSquare / 8, kingSquare % 8);
         
-        // Don't castle if in check
         if(IsSquareAttacked(color, kingPos)) return;
 
-        if(color == PieceColor.White) {
-            // King side castling (e1 to g1)
-            if(_whiteKingSideCastle) {
-                // Check squares f1(5) and g1(6) are empty
-                if(!IsBitSet(_occupiedSquares, 5) && !IsBitSet(_occupiedSquares, 6)) {
-                    // Check squares e1, f1, g1 are not attacked
-                    if(!IsSquareAttacked(color, new Position(0, 5)) &&
-                       !IsSquareAttacked(color, new Position(0, 6))) {
-                        moves.Add(new Move(new Position(0, 4), new Position(0, 6)));
-                    }
+        if(color == PieceColor.White)
+        {
+            GenerateWhiteCastlingMoves(color, moves);
+        }
+        else
+        {
+            GenerateBlackCastlingMoves(color, moves);
+        }
+    }
+
+    private void GenerateBlackCastlingMoves(PieceColor color, List<Move> moves)
+    {
+        // King side castling (e8 to g8)
+        if (_blackKingSideCastle)
+        {
+            if (!IsBitSet(_occupiedSquares, 61) && !IsBitSet(_occupiedSquares, 62))
+            {
+                if (!IsSquareAttacked(color, new Position(7, 5)) &&
+                   !IsSquareAttacked(color, new Position(7, 6)))
+                {
+                    moves.Add(new Move(new Position(7, 4), new Position(7, 6)));
                 }
             }
-            // Queen side castling (e1 to c1)
-            if(_whiteQueenSideCastle) {
-                // Check squares b1(1), c1(2), d1(3) are empty
-                if(!IsBitSet(_occupiedSquares, 1) && !IsBitSet(_occupiedSquares, 2) && !IsBitSet(_occupiedSquares, 3)) {
-                    // Check squares e1, d1, c1 are not attacked
-                    if(!IsSquareAttacked(color, new Position(0, 3)) &&
-                       !IsSquareAttacked(color, new Position(0, 2))) {
-                        moves.Add(new Move(new Position(0, 4), new Position(0, 2)));
-                    }
+        }
+        // Queen side castling (e8 to c8)
+        if (_blackQueenSideCastle)
+        {
+            if (!IsBitSet(_occupiedSquares, 57) && !IsBitSet(_occupiedSquares, 58) && !IsBitSet(_occupiedSquares, 59))
+            {
+                if (!IsSquareAttacked(color, new Position(7, 3)) &&
+                   !IsSquareAttacked(color, new Position(7, 2)))
+                {
+                    moves.Add(new Move(new Position(7, 4), new Position(7, 2)));
                 }
             }
-        } else {
-            // King side castling (e8 to g8)
-            if(_blackKingSideCastle) {
-                // Check squares f8(61) and g8(62) are empty
-                if(!IsBitSet(_occupiedSquares, 61) && !IsBitSet(_occupiedSquares, 62)) {
-                    // Check squares e8, f8, g8 are not attacked
-                    if(!IsSquareAttacked(color, new Position(7, 5)) &&
-                       !IsSquareAttacked(color, new Position(7, 6))) {
-                        moves.Add(new Move(new Position(7, 4), new Position(7, 6)));
-                    }
+        }
+    }
+
+    private void GenerateWhiteCastlingMoves(PieceColor color, List<Move> moves)
+    {
+        // King side castling (e1 to g1)
+        if (_whiteKingSideCastle)
+        {
+            if (!IsBitSet(_occupiedSquares, 5) && !IsBitSet(_occupiedSquares, 6))
+            {
+                if (!IsSquareAttacked(color, new Position(0, 5)) &&
+                   !IsSquareAttacked(color, new Position(0, 6)))
+                {
+                    moves.Add(new Move(new Position(0, 4), new Position(0, 6)));
                 }
             }
-            // Queen side castling (e8 to c8)
-            if(_blackQueenSideCastle) {
-                // Check squares b8(57), c8(58), d8(59) are empty
-                if(!IsBitSet(_occupiedSquares, 57) && !IsBitSet(_occupiedSquares, 58) && !IsBitSet(_occupiedSquares, 59)) {
-                    // Check squares e8, d8, c8 are not attacked
-                    if(!IsSquareAttacked(color, new Position(7, 3)) &&
-                       !IsSquareAttacked(color, new Position(7, 2))) {
-                        moves.Add(new Move(new Position(7, 4), new Position(7, 2)));
-                    }
+        }
+        // Queen side castling (e1 to c1)
+        if (_whiteQueenSideCastle)
+        {
+            if (!IsBitSet(_occupiedSquares, 1) && !IsBitSet(_occupiedSquares, 2) && !IsBitSet(_occupiedSquares, 3))
+            {
+                if (!IsSquareAttacked(color, new Position(0, 3)) &&
+                   !IsSquareAttacked(color, new Position(0, 2)))
+                {
+                    moves.Add(new Move(new Position(0, 4), new Position(0, 2)));
                 }
             }
         }
@@ -1067,4 +1082,170 @@ public class BitBoard : IVisualizedBoard {
             _ => throw new ArgumentException($"Invalid piece character: {c}")
         };
     }
+
+    #region Visualization Accessors
+    
+    /// <summary>
+    /// Public accessors for bitboard visualization.
+    /// These provide read-only access to internal bitboards for UI display.
+    /// </summary>
+    public ulong OccupiedSquares => _occupiedSquares;
+    public ulong WhitePieces => _whitePieces;
+    public ulong BlackPieces => _blackPieces;
+
+    /// <summary>
+    /// Gets all squares attacked by pieces of the specified color.
+    /// Combines attacks from all piece types.
+    /// </summary>
+    public ulong GetAllAttacksForColor(PieceColor color) {
+        ulong attacks = 0;
+        
+        // Pawn attacks
+        ulong pawns = _pieces[(int)color, (int)PieceType.Pawn];
+        if (color == PieceColor.White) {
+            attacks |= ((pawns & NOT_A_FILE) << 7) | ((pawns & NOT_H_FILE) << 9);
+        } else {
+            attacks |= ((pawns & NOT_H_FILE) >> 7) | ((pawns & NOT_A_FILE) >> 9);
+        }
+        
+        // Knight attacks
+        ulong knights = _pieces[(int)color, (int)PieceType.Knight];
+        while (knights != 0) {
+            int square = BitBoardExtensions.PopLsb(ref knights);
+            attacks |= KNIGHT_ATTACKS[square];
+        }
+        
+        // Bishop attacks
+        ulong bishops = _pieces[(int)color, (int)PieceType.Bishop];
+        while (bishops != 0) {
+            int square = BitBoardExtensions.PopLsb(ref bishops);
+            attacks |= GetBishopAttacks(square, _occupiedSquares);
+        }
+        
+        // Rook attacks
+        ulong rooks = _pieces[(int)color, (int)PieceType.Rook];
+        while (rooks != 0) {
+            int square = BitBoardExtensions.PopLsb(ref rooks);
+            attacks |= GetRookAttacks(square, _occupiedSquares);
+        }
+        
+        // Queen attacks
+        ulong queens = _pieces[(int)color, (int)PieceType.Queen];
+        while (queens != 0) {
+            int square = BitBoardExtensions.PopLsb(ref queens);
+            attacks |= GetQueenAttacks(square, _occupiedSquares);
+        }
+        
+        // King attacks
+        ulong king = _pieces[(int)color, (int)PieceType.King];
+        if (king != 0) {
+            int square = BitBoardExtensions.PopLsb(ref king);
+            attacks |= KING_ATTACKS[square];
+        }
+        
+        return attacks;
+    }
+    
+    /// <summary>
+    /// Gets the bitboard for a specific piece type and color.
+    /// </summary>
+    public ulong GetPieceBitboard(PieceColor color, PieceType type) => _pieces[(int)color, (int)type];
+    
+    /// <summary>
+    /// Gets precomputed knight attacks for a square (no blockers needed).
+    /// </summary>
+    public static ulong GetKnightAttacksForSquare(int square) => KNIGHT_ATTACKS[square];
+    
+    /// <summary>
+    /// Gets precomputed king attacks for a square (no blockers needed).
+    /// </summary>
+    public static ulong GetKingAttacksForSquare(int square) => KING_ATTACKS[square];
+    
+    /// <summary>
+    /// Gets rook attacks for a square considering current board blockers.
+    /// Uses magic bitboard lookup.
+    /// </summary>
+    public ulong GetRookAttacksForSquare(int square) => GetRookAttacks(square, _occupiedSquares);
+    
+    /// <summary>
+    /// Gets bishop attacks for a square considering current board blockers.
+    /// Uses magic bitboard lookup.
+    /// </summary>
+    public ulong GetBishopAttacksForSquare(int square) => GetBishopAttacks(square, _occupiedSquares);
+    
+    /// <summary>
+    /// Gets queen attacks for a square considering current board blockers.
+    /// Combines rook and bishop attacks.
+    /// </summary>
+    public ulong GetQueenAttacksForSquare(int square) => GetQueenAttacks(square, _occupiedSquares);
+    
+    /// <summary>
+    /// Gets pawn attacks for a square (diagonal attack squares only).
+    /// </summary>
+    public static ulong GetPawnAttacksForSquare(int square, PieceColor color) {
+        ulong pawn = 1UL << square;
+        if (color == PieceColor.White) {
+            ulong leftAttack = (pawn & NOT_A_FILE) << 7;
+            ulong rightAttack = (pawn & NOT_H_FILE) << 9;
+            return leftAttack | rightAttack;
+        } else {
+            ulong leftAttack = (pawn & NOT_H_FILE) >> 7;
+            ulong rightAttack = (pawn & NOT_A_FILE) >> 9;
+            return leftAttack | rightAttack;
+        }
+    }
+    
+    /// <summary>
+    /// Gets magic bitboard debug info for sliding pieces.
+    /// Returns the magic number, mask, shift, and computed index for educational display.
+    /// </summary>
+    public MagicBitboardInfo GetRookMagicInfo(int square) {
+        var relevantBlocker = _occupiedSquares & ROOK_MASKS[square];
+        var index = BitBoardExtensions.GetMagicIndex(relevantBlocker, ROOK_MAGICS[square], ROOK_SHIFTS[square]);
+        return new MagicBitboardInfo {
+            Square = square,
+            PieceType = PieceType.Rook,
+            Magic = ROOK_MAGICS[square],
+            Mask = ROOK_MASKS[square],
+            Shift = ROOK_SHIFTS[square],
+            RelevantBlockers = relevantBlocker,
+            Index = index,
+            Attacks = ROOK_ATTACKS[square][index]
+        };
+    }
+    
+    /// <summary>
+    /// Gets magic bitboard debug info for bishops.
+    /// </summary>
+    public MagicBitboardInfo GetBishopMagicInfo(int square) {
+        var relevantBlocker = _occupiedSquares & BISHOP_MASKS[square];
+        var index = BitBoardExtensions.GetMagicIndex(relevantBlocker, BISHOP_MAGICS[square], BISHOP_SHIFTS[square]);
+        return new MagicBitboardInfo {
+            Square = square,
+            PieceType = PieceType.Bishop,
+            Magic = BISHOP_MAGICS[square],
+            Mask = BISHOP_MASKS[square],
+            Shift = BISHOP_SHIFTS[square],
+            RelevantBlockers = relevantBlocker,
+            Index = index,
+            Attacks = BISHOP_ATTACKS[square][index]
+        };
+    }
+    
+    #endregion
+}
+
+/// <summary>
+/// Debug information for magic bitboard lookups.
+/// Used for educational visualization of how magic bitboards work.
+/// </summary>
+public class MagicBitboardInfo {
+    public int Square { get; set; }
+    public PieceType PieceType { get; set; }
+    public ulong Magic { get; set; }
+    public ulong Mask { get; set; }
+    public int Shift { get; set; }
+    public ulong RelevantBlockers { get; set; }
+    public int Index { get; set; }
+    public ulong Attacks { get; set; }
 }

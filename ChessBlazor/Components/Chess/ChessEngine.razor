@@ -3,30 +3,36 @@
 @rendermode InteractiveServer
 
 @using ChessBlazor.Components.Chess.Player
+@using ChessBlazor.Components.Chess.Services
 @using global::Chess.Programming.Ago.ChessEngines
+@using global::Chess.Programming.Ago.Core
 @inject IJSRuntime JS
+
+@* Welcome Overlay (Separate Component) *@
+@if (!isGameStarted) {
+    <WelcomeOverlay 
+        WhitePlayerName="@WhitePlayer.GetType().Name" 
+        BlackPlayerName="@BlackPlayer.GetType().Name" 
+        OnStartGame="StartGame" />
+}
+
+@* Game End Banner (Separate Component) *@
+@if (isGameStarted && game.IsFinished()) {
+    <GameEndBanner 
+        IsWin="@(game.Winner != null)" 
+        WinnerColor="@(game.Winner?.Color.ToString() ?? "")" 
+        GameEndReason="@game.GetGameEndReason()"
+        OnPlayAgain="PlayAgain"
+        OnRetry="RetryGame" />
+}
 
 <div class="chess-engine-wrapper">
     <div class="chess-game-section">
         <div class="game-controls">
-            @if (!isGameStarted) {
-                <button class="btn btn-primary" @onclick="StartGame">Start Game</button>
-            } else {
-                <div class="game-status">
-                    @if (game.IsFinished() && game.Winner != null) {
-                        <div class="winner-display">
-                            @game.GetGameEndReason() - @game.Winner.Color wins!
-                        </div>
-                    } else if (game.IsFinished()) {
-                        <div class="winner-display draw">
-                            @game.GetGameEndReason() - Draw!
-                        </div>
-                    } else {
-                        <div class="spinner-container">
-                            <div class="spinner"></div>
-                            <span class="game-active-text">Game active</span>
-                        </div>
-                    }
+            @if (isGameStarted && !game.IsFinished()) {
+                <div class="spinner-container">
+                    <div class="spinner"></div>
+                    <span class="game-active-text">Game active</span>
                 </div>
             }
             
@@ -58,14 +64,38 @@
             } 
         </div>
 
-        <div class="game-layout">
-            <div class="captured-pieces-panel captured-pieces-white">
-                <h3>Captured by White</h3>
-                <div class="captured-pieces-list">
-                    @foreach(var piece in game.GetCapturedPieces().Where(p => p.Color == PieceColor.Black)) {
-                        <div class="captured-piece @(@piece.Type.ToString().ToLower())-@(@piece.Color.ToString().ToLower())"></div>
+        @* Binary Display Above Board *@
+        @if (activeBitboard.HasValue) {
+            <div class="binary-display-header">
+                <div class="binary-label-header">@activeBitboardName</div>
+                <div class="binary-string-header">
+                    @for (int i = 63; i >= 0; i--) {
+                        var bit = (activeBitboard.Value >> i) & 1;
+                        <span class="bit-header @(bit == 1 ? "bit-set-header" : "bit-unset-header")">@bit</span>
                     }
                 </div>
+            </div>
+        }
+
+        <div class="game-layout">
+            <div class="side-panel left-panel">
+                <div class="captured-pieces-panel captured-pieces-white">
+                    <h3>Captured by White</h3>
+                    <div class="captured-pieces-list">
+                        @foreach(var piece in game.GetCapturedPieces().Where(p => p.Color == PieceColor.Black)) {
+                            <div class="captured-piece @(@piece.Type.ToString().ToLower())-@(@piece.Color.ToString().ToLower())"></div>
+                        }
+                    </div>
+                </div>
+                
+                @* Bitboard Visualizer Panel *@
+                <BitBoardVisualizer 
+                    Board="@game.GetVisualizedBoard()" 
+                    OnBitboardSelected="HandleBitboardSelected"
+                    OnAttackModeToggled="HandleAttackModeToggled"
+                    MagicInfo="@currentMagicInfo"
+                    ActiveBitboard="@activeBitboard"
+                    ActiveBitboardName="@activeBitboardName" />
             </div>
 
             <div class="board-container">
@@ -88,12 +118,14 @@
                                     var row = 7 - i;
                                     var column = j;
                                     var position = new Position(row, column);
+                                    var bitPosition = row * 8 + column;
                                     var promotionMovesToThisSquare = validMovesForselectedCellPosition
                                         .Where(move => move.To == position && move.PromotedTo != null)
                                         .ToList();
                                     var hasPromotionOptions = promotionMovesToThisSquare.Count >= 1;
                                     var isHintFrom = currentHint?.SuggestedMove?.From == position;
                                     var isHintTo = currentHint?.SuggestedMove?.To == position;
+                                    var isBitSet = activeBitboard.HasValue && ((activeBitboard.Value >> bitPosition) & 1) == 1;
                                     
                                     <div class="board-row-cell 
                                             @(selectedCellPosition == new Position(row, column) ? "board-row-cell-selected" : "") 
@@ -102,10 +134,20 @@
                                             @(game.GetLastMove()?.To == position ? "board-row-cell-last-move-to" : "")
                                             @(validMovesForselectedCellPosition.Any(move => move.To == new Position(row, column)) ? "board-row-cell-valid-move" : "")
                                             @(isHintFrom ? "board-row-cell-hint-from" : "")
-                                            @(isHintTo ? "board-row-cell-hint-to" : "")"
+                                            @(isHintTo ? "board-row-cell-hint-to" : "")
+                                            @(isBitSet ? "board-row-cell-bit-set" : "")
+                                            @(activeBitboard.HasValue && !isBitSet ? "board-row-cell-bit-unset" : "")"
                                             @onclick="() => HandleCellClick(position)"
                                             ondragover="event.preventDefault();"
                                             @ondrop="() => HandleDrop(position)">
+                                        
+                                        @* Bitboard Overlay *@
+                                        @if (activeBitboard.HasValue) {
+                                            <div class="bitboard-overlay @(isBitSet ? "overlay-set" : "overlay-unset")">
+                                                <span class="overlay-bit">@(isBitSet ? "1" : "0")</span>
+                                            </div>
+                                        }
+                                        
                                         @{
                                             var piece = game.GetPieceAtPosition(position);
                                             var isDraggable = piece != null && piece.Color == game.GetCurrentPlayer().Color && isGameStarted && !game.GetCurrentPlayer().IsAI() && !game.IsFinished();
@@ -123,7 +165,7 @@
                                                     }
                                                 </div>
                                             } else if(piece != null) {
-                                                <div class="board-piece @(@piece.Type.ToString().ToLower())-@(@piece.Color.ToString().ToLower()) @(isDraggable ? "draggable-piece" : "")"
+                                                <div class="board-piece @(@piece.Type.ToString().ToLower())-@(@piece.Color.ToString().ToLower()) @(isDraggable ? "draggable-piece" : "") @(attackModeEnabled ? "attack-mode-piece" : "")"
                                                      draggable="@isDraggable.ToString().ToLower()"
                                                      @ondragstart="() => HandleDragStart(position)"
                                                      @ondragend="HandleDragEnd">
@@ -162,78 +204,81 @@
                 </div>
             </div>
 
-            <div class="captured-pieces-panel captured-pieces-black">
-                <h3>Captured by Black</h3>
-                <div class="captured-pieces-list">
-                    @foreach(var piece in game.GetCapturedPieces().Where(p => p.Color == PieceColor.White)) {
-                        <div class="captured-piece @(@piece.Type.ToString().ToLower())-@(@piece.Color.ToString().ToLower())"></div>
-                    }
-                </div>
-            </div>
-        </div>
-
-        @* Hint System - Fixed bottom panel *@
-        @if (isGameStarted && !game.IsFinished() && !game.GetCurrentPlayer().IsAI()) {
-            <div class="hint-panel">
-                <div class="hint-inner">
-                    <div class="hint-header">
-                        <span class="hint-title">AI Assistant</span>
-                        <div class="hint-depth-control">
-                            <span class="hint-depth-label">Depth</span>
-                            <input type="number" min="1" max="5" @bind="hintSearchDepth" @bind:after="UpdateHintDepth" disabled="@isCalculatingHint" class="hint-depth-input" />
-                        </div>
+            <div class="side-panel right-panel">
+                <div class="captured-pieces-panel captured-pieces-black">
+                    <h3>Captured by Black</h3>
+                    <div class="captured-pieces-list">
+                        @foreach(var piece in game.GetCapturedPieces().Where(p => p.Color == PieceColor.White)) {
+                            <div class="captured-piece @(@piece.Type.ToString().ToLower())-@(@piece.Color.ToString().ToLower())"></div>
+                        }
                     </div>
-                    
-                    <div class="hint-body">
-                        @if (currentHint != null) {
-                            <div class="hint-result">
-                                <div class="hint-move-display">
-                                    <span class="hint-move-text">@currentHint.MoveDescription</span>
-                                    <span class="hint-score @(currentHint.Score > 0 ? "positive" : currentHint.Score < 0 ? "negative" : "neutral")">
-                                        @(currentHint.Score > 0 ? "+" : "")@currentHint.Score
-                                    </span>
+                </div>
+
+                @* Hint System - Integrated in side panel *@
+                @if (isGameStarted && !game.IsFinished() && !game.GetCurrentPlayer().IsAI()) {
+                    <div class="hint-panel-side">
+                        <div class="hint-inner-side">
+                            <div class="hint-header-side">
+                                <span class="hint-title-side">AI Assistant</span>
+                                <div class="hint-depth-control-side">
+                                    <span class="hint-depth-label-side">Depth</span>
+                                    <input type="number" min="1" max="5" @bind="hintSearchDepth" @bind:after="UpdateHintDepth" disabled="@isCalculatingHint" class="hint-depth-input-side" />
                                 </div>
-                                @if (currentHint.SearchResult != null) {
-                                    <div class="hint-meta">
-                                        <span>@currentHint.SearchResult.TotalNodesEvaluated nodes</span>
-                                        <span class="hint-meta-dot">•</span>
-                                        <span>@currentHint.SearchResult.NodesPruned pruned</span>
+                            </div>
+                            
+                            <div class="hint-body-side">
+                                @if (currentHint != null) {
+                                    <div class="hint-result-side">
+                                        <div class="hint-move-display-side">
+                                            <span class="hint-move-text-side">@currentHint.MoveDescription</span>
+                                            <span class="hint-score-side @(currentHint.Score > 0 ? "positive" : currentHint.Score < 0 ? "negative" : "neutral")">
+                                                @(currentHint.Score > 0 ? "+" : "")@currentHint.Score
+                                            </span>
+                                        </div>
+                                        @if (currentHint.SearchResult != null) {
+                                            <div class="hint-meta-side">
+                                                <span>@currentHint.SearchResult.TotalNodesEvaluated nodes</span>
+                                                <span class="hint-meta-dot-side">•</span>
+                                                <span>@currentHint.SearchResult.NodesPruned pruned</span>
+                                            </div>
+                                        }
+                                    </div>
+                                } else if (!isCalculatingHint) {
+                                    <div class="hint-placeholder-side">
+                                        <span>Request a hint to see the best move</span>
                                     </div>
                                 }
                             </div>
-                        } else if (!isCalculatingHint) {
-                            <div class="hint-placeholder">
-                                <span>Request a hint to see the best move</span>
+                            
+                            <div class="hint-actions-side">
+                                @if (isCalculatingHint) {
+                                    <button class="hint-btn-side hint-btn-primary-side" disabled>
+                                        <span class="hint-btn-spinner-side"></span>
+                                        Analyzing...
+                                    </button>
+                                } else {
+                                    <button class="hint-btn-side hint-btn-primary-side" @onclick="RequestHint">
+                                        Get Hint
+                                    </button>
+                                }
+                                
+                                @if (currentHint != null) {
+                                    <button class="hint-btn-side hint-btn-secondary-side" @onclick="ClearHint">
+                                        Clear
+                                    </button>
+                                    @if (currentHint.SearchResult != null) {
+                                        <button class="hint-btn-side hint-btn-ghost-side" @onclick="ShowHintVisualization">
+                                            View Tree
+                                        </button>
+                                    }
+                                }
                             </div>
-                        }
+                        </div>
                     </div>
-                    
-                    <div class="hint-actions">
-                        @if (isCalculatingHint) {
-                            <button class="hint-btn hint-btn-primary" disabled>
-                                <span class="hint-btn-spinner"></span>
-                                Analyzing...
-                            </button>
-                        } else {
-                            <button class="hint-btn hint-btn-primary" @onclick="RequestHint">
-                                Get Hint
-                            </button>
-                        }
-                        
-                        @if (currentHint != null) {
-                            <button class="hint-btn hint-btn-secondary" @onclick="ClearHint">
-                                Clear
-                            </button>
-                            @if (currentHint.SearchResult != null) {
-                                <button class="hint-btn hint-btn-ghost" @onclick="ShowHintVisualization">
-                                    View Tree
-                                </button>
-                            }
-                        }
-                    </div>
-                </div>
+                }
             </div>
-        }
+        </div>
+
     </div>
 </div>
 
@@ -920,6 +965,319 @@
 
     .board-row-cell {
         transition: background-color 0.15s ease;
+        position: relative;
+    }
+
+    @@keyframes fadeIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
+    }
+
+    @@keyframes slideUp {
+        from { 
+            opacity: 0;
+            transform: translateY(30px);
+        }
+        to { 
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    @@keyframes dropIn {
+        from { 
+            opacity: 0;
+            transform: translateY(-100px) scale(0.8);
+        }
+        to { 
+            opacity: 1;
+            transform: translateY(0) scale(1);
+        }
+    }
+
+    @@keyframes float {
+        0%, 100% { transform: translateY(0); }
+        50% { transform: translateY(-10px); }
+    }
+
+    @@keyframes bounce {
+        0%, 100% { transform: scale(1); }
+        50% { transform: scale(1.1); }
+    }
+
+    @@keyframes pulse {
+        0%, 100% { opacity: 1; transform: scale(1); }
+        50% { opacity: 0.8; transform: scale(1.05); }
+    }
+
+    /* Side Panel Layout */
+    .side-panel {
+        display: flex;
+        flex-direction: column;
+        gap: 1rem;
+        width: 320px;
+    }
+
+    .left-panel {
+        align-items: flex-end;
+    }
+
+    .right-panel {
+        align-items: flex-start;
+    }
+
+    /* Binary Display Header - Apple/Tesla Minimalist */
+    .binary-display-header {
+        background: #ffffff;
+        border-radius: 16px;
+        padding: 16px 24px;
+        margin: 0 auto 1rem auto;
+        max-width: fit-content;
+        border: 1px solid rgba(0, 0, 0, 0.06);
+        box-shadow: 0 2px 12px rgba(0, 0, 0, 0.06);
+    }
+
+    .binary-label-header {
+        color: #007aff;
+        font-size: 10px;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 1px;
+        margin-bottom: 10px;
+        text-align: center;
+    }
+
+    .binary-string-header {
+        font-family: 'SF Mono', 'Fira Code', monospace;
+        font-size: 12px;
+        word-break: break-all;
+        line-height: 1.6;
+    }
+
+    .bit-header {
+        transition: color 0.2s;
+    }
+
+    .bit-set-header {
+        color: #007aff;
+        font-weight: bold;
+    }
+
+    .bit-unset-header {
+        color: #d2d2d7;
+    }
+
+    /* Bitboard Overlay on Board - Apple/Tesla Minimalist */
+    .bitboard-overlay {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        pointer-events: none;
+        z-index: 5;
+    }
+
+    .overlay-set {
+        background: rgba(0, 122, 255, 0.4);
+    }
+
+    .overlay-unset {
+        background: rgba(0, 0, 0, 0.05);
+    }
+
+    .overlay-bit {
+        font-family: 'SF Mono', monospace;
+        font-size: 1.5rem;
+        font-weight: 600;
+        color: white;
+        text-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
+    }
+
+    .board-row-cell-bit-set {
+        box-shadow: inset 0 0 0 3px #007aff !important;
+    }
+
+    .attack-mode-piece {
+        cursor: crosshair !important;
+    }
+
+    /* Hint Panel Side Styles */
+    .hint-panel-side {
+        width: 100%;
+    }
+
+    .hint-inner-side {
+        background: #ffffff;
+        border-radius: 12px;
+        padding: 1rem;
+        box-shadow: 0 2px 16px rgba(0, 0, 0, 0.08);
+        border: 1px solid rgba(0, 0, 0, 0.06);
+    }
+
+    .hint-header-side {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 0.75rem;
+        padding-bottom: 0.5rem;
+        border-bottom: 1px solid #f0f0f0;
+    }
+
+    .hint-title-side {
+        font-size: 0.7rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.05em;
+        color: #86868b;
+    }
+
+    .hint-depth-control-side {
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+    }
+
+    .hint-depth-label-side {
+        font-size: 0.65rem;
+        color: #86868b;
+    }
+
+    .hint-depth-input-side {
+        width: 40px;
+        padding: 0.25rem 0.4rem;
+        border: 1px solid #e5e5e5;
+        border-radius: 6px;
+        font-size: 0.75rem;
+        text-align: center;
+        background: #fafafa;
+    }
+
+    .hint-body-side {
+        min-height: 50px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    .hint-placeholder-side {
+        color: #86868b;
+        font-size: 0.75rem;
+        text-align: center;
+    }
+
+    .hint-result-side {
+        width: 100%;
+        text-align: center;
+    }
+
+    .hint-move-display-side {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.75rem;
+        margin-bottom: 0.4rem;
+    }
+
+    .hint-move-text-side {
+        font-size: 1.25rem;
+        font-weight: 600;
+        color: #1d1d1f;
+    }
+
+    .hint-score-side {
+        font-size: 0.875rem;
+        font-weight: 600;
+        padding: 0.2rem 0.6rem;
+        border-radius: 16px;
+        font-family: 'SF Mono', monospace;
+    }
+
+    .hint-score-side.positive {
+        background: #e8f5e9;
+        color: #2e7d32;
+    }
+
+    .hint-score-side.negative {
+        background: #ffebee;
+        color: #c62828;
+    }
+
+    .hint-score-side.neutral {
+        background: #f5f5f5;
+        color: #666;
+    }
+
+    .hint-meta-side {
+        font-size: 0.65rem;
+        color: #86868b;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.4rem;
+    }
+
+    .hint-meta-dot-side {
+        opacity: 0.5;
+    }
+
+    .hint-actions-side {
+        display: flex;
+        justify-content: center;
+        gap: 0.5rem;
+        margin-top: 0.75rem;
+        padding-top: 0.75rem;
+        border-top: 1px solid #f0f0f0;
+        flex-wrap: wrap;
+    }
+
+    .hint-btn-side {
+        padding: 0.5rem 1rem;
+        font-size: 0.75rem;
+        font-weight: 500;
+        border: none;
+        border-radius: 8px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+    }
+
+    .hint-btn-primary-side {
+        background: #007aff;
+        color: white;
+    }
+
+    .hint-btn-primary-side:hover:not(:disabled) {
+        background: #0056b3;
+    }
+
+    .hint-btn-primary-side:disabled {
+        background: #b0d4ff;
+        cursor: not-allowed;
+    }
+
+    .hint-btn-secondary-side {
+        background: #f5f5f7;
+        color: #1d1d1f;
+    }
+
+    .hint-btn-ghost-side {
+        background: transparent;
+        color: #007aff;
+    }
+
+    .hint-btn-spinner-side {
+        width: 12px;
+        height: 12px;
+        border: 2px solid rgba(255, 255, 255, 0.3);
+        border-top: 2px solid white;
+        border-radius: 50%;
+        animation: spin 0.8s linear infinite;
     }
 </style>
 
@@ -941,6 +1299,17 @@
     
     // Sound system state
     private int lastCapturedCount = 0;
+
+    // Bitboard visualizer state
+    private ulong? activeBitboard = null;
+    private string activeBitboardName = "";
+    private bool attackModeEnabled = false;
+    private MagicBitboardInfo? currentMagicInfo = null;
+    
+    // Overlay refresh tracking
+    private string? overlayType = null; // "occupied", "white", "black", "piece:W:Knight", "attacks:e4:Rook", "allattacks:White", etc.
+    private Position? overlayPiecePosition = null; // Position is a class, so nullable
+    private Piece? overlayPiece = null;
 
     [Parameter]
     public IPlayer WhitePlayer { get; set; } = new HumanBlazorPlayer(PieceColor.White);
@@ -987,33 +1356,9 @@
 
     protected override async Task OnAfterRenderAsync(bool firstRender) {
         if(firstRender) {
-            game.NextMoveHandler = async () => {
-                // Play move sound
-                await PlayMoveSoundAsync();
-                
-                // Clear any active hint when a move is made
-                currentHint = null;
-                hintService.ClearHint();
-                
-                // Capture search result after AI move
-                var visualizablePlayer = GetVisualizablePlayer();
-                if (visualizablePlayer != null) {
-                    lastSearchResult = visualizablePlayer.GetLastSearchResult();
-                }
-                
-                // Play check sound if applicable
-                if (game.IsChecked(game.GetCurrentPlayer().Color)) {
-                    await PlayCheckSoundAsync();
-                }
-                
-                // Play game over sound if applicable
-                if (game.IsFinished()) {
-                    await PlayGameOverSoundAsync();
-                }
-                
-                StateHasChanged(); 
-            };
+            SetupMoveHandler();
         }
+        await Task.CompletedTask;
     }
     
     private async Task PlayMoveSoundAsync() {
@@ -1125,6 +1470,15 @@
     }
 
     private async Task HandleCellClick(Position clickedPosition) {
+        // Handle attack mode visualization
+        if (attackModeEnabled) {
+            var piece = game.GetPieceAtPosition(clickedPosition);
+            if (piece != null) {
+                ShowPieceAttacks(clickedPosition, piece);
+                return;
+            }
+        }
+
         if(!isGameStarted || game.GetCurrentPlayer().IsAI() || game.IsFinished()) {
             return;
         }
@@ -1262,5 +1616,214 @@
             UnsetSelectedCell();
             StateHasChanged();
         }
+    }
+
+    // Bitboard Visualizer Methods
+    private void HandleBitboardSelected((ulong? Bitboard, string Name) selection) {
+        activeBitboard = selection.Bitboard;
+        activeBitboardName = selection.Name;
+        currentMagicInfo = null; // Clear magic info when selecting a static bitboard
+        
+        // Track overlay type for refresh
+        if (selection.Name == "Occupied") {
+            overlayType = "occupied";
+        } else if (selection.Name == "White Pieces") {
+            overlayType = "white";
+        } else if (selection.Name == "Black Pieces") {
+            overlayType = "black";
+        } else if (selection.Name == "All White Attacks") {
+            overlayType = "allattacks:White";
+        } else if (selection.Name == "All Black Attacks") {
+            overlayType = "allattacks:Black";
+        } else if (selection.Name.StartsWith("W ") || selection.Name.StartsWith("B ")) {
+            overlayType = $"piece:{selection.Name}";
+        } else {
+            overlayType = null;
+        }
+        
+        overlayPiecePosition = null;
+        overlayPiece = null;
+        
+        StateHasChanged();
+    }
+
+    private void HandleAttackModeToggled(bool enabled) {
+        attackModeEnabled = enabled;
+        if (!enabled) {
+            // Clear visualization when disabling attack mode
+            ClearOverlay();
+        }
+        StateHasChanged();
+    }
+
+    private void ShowPieceAttacks(Position position, Piece piece) {
+        var board = game.GetVisualizedBoard();
+        if (board == null) return;
+
+        int square = position.Row * 8 + position.Column;
+        
+        // Track for refresh
+        overlayType = $"pieceattacks:{piece.Type}:{piece.Color}";
+        overlayPiecePosition = position;
+        overlayPiece = piece;
+        
+        switch (piece.Type) {
+            case PieceType.Rook:
+                activeBitboard = board.GetRookAttacksForSquare(square);
+                activeBitboardName = $"Rook Attacks ({GetSquareName(square)})";
+                currentMagicInfo = board.GetRookMagicInfo(square);
+                break;
+            case PieceType.Bishop:
+                activeBitboard = board.GetBishopAttacksForSquare(square);
+                activeBitboardName = $"Bishop Attacks ({GetSquareName(square)})";
+                currentMagicInfo = board.GetBishopMagicInfo(square);
+                break;
+            case PieceType.Queen:
+                activeBitboard = board.GetQueenAttacksForSquare(square);
+                activeBitboardName = $"Queen Attacks ({GetSquareName(square)})";
+                currentMagicInfo = null; // Queen doesn't have its own magic, it's Rook + Bishop
+                break;
+            case PieceType.Knight:
+                activeBitboard = BitBoard.GetKnightAttacksForSquare(square);
+                activeBitboardName = $"Knight Attacks ({GetSquareName(square)})";
+                currentMagicInfo = null;
+                break;
+            case PieceType.King:
+                activeBitboard = BitBoard.GetKingAttacksForSquare(square);
+                activeBitboardName = $"King Attacks ({GetSquareName(square)})";
+                currentMagicInfo = null;
+                break;
+            case PieceType.Pawn:
+                activeBitboard = BitBoard.GetPawnAttacksForSquare(square, piece.Color);
+                activeBitboardName = $"Pawn Attacks ({GetSquareName(square)})";
+                currentMagicInfo = null;
+                break;
+        }
+        
+        StateHasChanged();
+    }
+
+    private void RefreshOverlay() {
+        if (overlayType == null || !activeBitboard.HasValue) return;
+        
+        var board = game.GetVisualizedBoard();
+        if (board == null) return;
+
+        if (overlayType == "occupied") {
+            activeBitboard = board.OccupiedSquares;
+        } else if (overlayType == "white") {
+            activeBitboard = board.WhitePieces;
+        } else if (overlayType == "black") {
+            activeBitboard = board.BlackPieces;
+        } else if (overlayType == "allattacks:White") {
+            activeBitboard = board.GetAllAttacksForColor(PieceColor.White);
+        } else if (overlayType == "allattacks:Black") {
+            activeBitboard = board.GetAllAttacksForColor(PieceColor.Black);
+        } else if (overlayType.StartsWith("piece:")) {
+            // e.g., "piece:W Knight" or "piece:B Pawn"
+            var parts = overlayType.Substring(6).Split(' ');
+            if (parts.Length == 2) {
+                var color = parts[0] == "W" ? PieceColor.White : PieceColor.Black;
+                if (Enum.TryParse<PieceType>(parts[1], out var pieceType)) {
+                    activeBitboard = board.GetPieceBitboard(color, pieceType);
+                }
+            }
+        } else if (overlayType.StartsWith("pieceattacks:") && overlayPiecePosition != null) {
+            // Check if the piece is still at that position
+            var currentPiece = game.GetPieceAtPosition(overlayPiecePosition);
+            if (currentPiece != null && overlayPiece != null && 
+                currentPiece.Type == overlayPiece.Type && currentPiece.Color == overlayPiece.Color) {
+                // Piece still there, refresh attacks
+                int square = overlayPiecePosition.Row * 8 + overlayPiecePosition.Column;
+                switch (currentPiece.Type) {
+                    case PieceType.Rook:
+                        activeBitboard = board.GetRookAttacksForSquare(square);
+                        currentMagicInfo = board.GetRookMagicInfo(square);
+                        break;
+                    case PieceType.Bishop:
+                        activeBitboard = board.GetBishopAttacksForSquare(square);
+                        currentMagicInfo = board.GetBishopMagicInfo(square);
+                        break;
+                    case PieceType.Queen:
+                        activeBitboard = board.GetQueenAttacksForSquare(square);
+                        break;
+                    case PieceType.Knight:
+                        activeBitboard = BitBoard.GetKnightAttacksForSquare(square);
+                        break;
+                    case PieceType.King:
+                        activeBitboard = BitBoard.GetKingAttacksForSquare(square);
+                        break;
+                    case PieceType.Pawn:
+                        activeBitboard = BitBoard.GetPawnAttacksForSquare(square, currentPiece.Color);
+                        break;
+                }
+            } else {
+                // Piece moved or captured, clear the overlay
+                ClearOverlay();
+            }
+        }
+    }
+
+    private void ClearOverlay() {
+        activeBitboard = null;
+        activeBitboardName = "";
+        currentMagicInfo = null;
+        overlayType = null;
+        overlayPiecePosition = null;
+        overlayPiece = null;
+    }
+
+    private string GetSquareName(int square) {
+        char file = (char)('a' + (square % 8));
+        int rank = (square / 8) + 1;
+        return $"{file}{rank}";
+    }
+
+    private void ResetGame() {
+        isGameStarted = false;
+        game = new BitBoardGame(WhitePlayer, BlackPlayer, DelayPerMoveInMilliseconds);
+        lastCapturedCount = 0;
+        selectedCellPosition = null;
+        validMovesForselectedCellPosition = new List<Move>();
+        currentHint = null;
+        ClearOverlay();
+        SetupMoveHandler();
+        StateHasChanged();
+    }
+    
+    private async Task PlayAgain() {
+        ResetGame();
+        await StartGame();
+    }
+    
+    private async Task RetryGame() {
+        ResetGame();
+        await StartGame();
+    }
+    
+    private void SetupMoveHandler() {
+        game.NextMoveHandler = async () => {
+            await PlayMoveSoundAsync();
+            currentHint = null;
+            hintService.ClearHint();
+            
+            var visualizablePlayer = GetVisualizablePlayer();
+            if (visualizablePlayer != null) {
+                lastSearchResult = visualizablePlayer.GetLastSearchResult();
+            }
+            
+            // Refresh bitboard overlay if active
+            RefreshOverlay();
+            
+            if (game.IsChecked(game.GetCurrentPlayer().Color)) {
+                await PlayCheckSoundAsync();
+            }
+            
+            if (game.IsFinished()) {
+                await PlayGameOverSoundAsync();
+            }
+            
+            StateHasChanged(); 
+        };
     }
 }

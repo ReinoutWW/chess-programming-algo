@@ -65,4 +65,8 @@ public static class BitBoardExtensions {
     public static ulong Shift(this ulong value, int amount) {
         return amount > 0 ? value << amount : value >> -amount;
     }
+
+    public static int GetMagicIndex(this ulong value, ulong magic, int shift) {
+        return (int)((value * magic) >> shift);
+    }
 }

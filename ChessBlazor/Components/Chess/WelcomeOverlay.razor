@@ -1,0 +1,223 @@
+@namespace ChessBlazor.Components.Chess
+
+@using global::Chess.Programming.Ago.Core
+
+<div class="welcome-overlay">
+    <div class="welcome-modal">
+        <div class="welcome-icon">♔</div>
+        <h1 class="welcome-title">Chess Engine</h1>
+        <p class="welcome-subtitle">Experience the power of bitboard-based chess</p>
+        
+        <div class="welcome-players">
+            <div class="welcome-player white-player">
+                <span class="player-piece">♔</span>
+                <span class="player-label">White</span>
+                <span class="player-type">@WhitePlayerName</span>
+            </div>
+            <span class="vs-text">vs</span>
+            <div class="welcome-player black-player">
+                <span class="player-piece">♚</span>
+                <span class="player-label">Black</span>
+                <span class="player-type">@BlackPlayerName</span>
+            </div>
+        </div>
+        
+        <button class="welcome-start-btn" @onclick="OnStartGame">
+            <span class="btn-icon">▶</span>
+            Start Game
+        </button>
+        
+        <div class="welcome-features">
+            <div class="feature">
+                <span class="feature-icon">⚡</span>
+                <span>Bitboard Engine</span>
+            </div>
+            <div class="feature">
+                <span class="feature-icon">🔍</span>
+                <span>Attack Visualization</span>
+            </div>
+            <div class="feature">
+                <span class="feature-icon">🧠</span>
+                <span>AI Analysis</span>
+            </div>
+        </div>
+    </div>
+</div>
+
+<style>
+    .welcome-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: linear-gradient(180deg, #f5f5f7 0%, #ffffff 100%);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 1000;
+        animation: welcomeFadeIn 0.5s ease;
+    }
+
+    .welcome-modal {
+        background: #ffffff;
+        border-radius: 28px;
+        padding: 4rem 5rem;
+        text-align: center;
+        border: 1px solid rgba(0, 0, 0, 0.06);
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.08);
+        animation: welcomeSlideUp 0.6s ease;
+        max-width: 750px;
+        width: 90%;
+    }
+
+    .welcome-icon {
+        font-size: 4.5rem;
+        margin-bottom: 1.5rem;
+        animation: welcomeFloat 3s ease-in-out infinite;
+    }
+
+    .welcome-title {
+        font-size: 2.75rem;
+        font-weight: 600;
+        color: #1d1d1f;
+        margin: 0 0 0.75rem 0;
+        font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', sans-serif;
+        letter-spacing: -0.02em;
+    }
+
+    .welcome-subtitle {
+        font-size: 1.2rem;
+        color: #86868b;
+        margin: 0 0 3rem 0;
+        font-weight: 400;
+    }
+
+    .welcome-players {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 2.5rem;
+        margin-bottom: 3rem;
+    }
+
+    .welcome-player {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 0.75rem;
+        padding: 1.75rem 2.5rem;
+        background: #f5f5f7;
+        border-radius: 18px;
+        border: 1px solid rgba(0, 0, 0, 0.04);
+        min-width: 200px;
+    }
+
+    .player-piece {
+        font-size: 3rem;
+    }
+
+    .player-label {
+        font-size: 0.75rem;
+        text-transform: uppercase;
+        letter-spacing: 1.5px;
+        color: #86868b;
+        font-weight: 500;
+    }
+
+    .player-type {
+        font-size: 0.9rem;
+        color: #007aff;
+        font-weight: 600;
+        word-break: break-word;
+        max-width: 180px;
+    }
+
+    .vs-text {
+        font-size: 1.5rem;
+        color: #d2d2d7;
+        font-weight: 500;
+    }
+
+    .welcome-start-btn {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.75rem;
+        padding: 1.125rem 3.5rem;
+        font-size: 1.2rem;
+        font-weight: 600;
+        background: #007aff;
+        color: white;
+        border: none;
+        border-radius: 14px;
+        cursor: pointer;
+        transition: all 0.2s ease;
+        margin: 0 auto 2.5rem auto;
+        box-shadow: 0 4px 14px rgba(0, 122, 255, 0.3);
+    }
+
+    .welcome-start-btn:hover {
+        background: #0056b3;
+        transform: translateY(-1px);
+        box-shadow: 0 6px 20px rgba(0, 122, 255, 0.4);
+    }
+
+    .btn-icon {
+        font-size: 1rem;
+    }
+
+    .welcome-features {
+        display: flex;
+        justify-content: center;
+        gap: 2.5rem;
+        flex-wrap: wrap;
+        padding-top: 0.5rem;
+    }
+
+    .feature {
+        display: flex;
+        align-items: center;
+        gap: 0.6rem;
+        font-size: 0.875rem;
+        color: #86868b;
+        font-weight: 500;
+    }
+
+    .feature-icon {
+        font-size: 1.1rem;
+    }
+
+    @@keyframes welcomeFadeIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
+    }
+
+    @@keyframes welcomeSlideUp {
+        from { 
+            opacity: 0;
+            transform: translateY(30px);
+        }
+        to { 
+            opacity: 1;
+            transform: translateY(0);
+        }
+    }
+
+    @@keyframes welcomeFloat {
+        0%, 100% { transform: translateY(0); }
+        50% { transform: translateY(-10px); }
+    }
+</style>
+
+@code {
+    [Parameter]
+    public string WhitePlayerName { get; set; } = "Human";
+
+    [Parameter]
+    public string BlackPlayerName { get; set; } = "AI";
+
+    [Parameter]
+    public EventCallback OnStartGame { get; set; }
+}
+

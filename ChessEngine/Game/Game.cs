@@ -262,4 +262,6 @@ public class Game : IGame {
         
         this.board = board;
     }
+
+    public IVisualizedBoard? GetVisualizedBoard() => null; // Regular Game doesn't use bitboard visualization
 }
