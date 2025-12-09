@@ -15,6 +15,7 @@ public class BitBoardGame : IGame {
     private int _movesWithoutCapture = 0;
     private bool IsGameActive = true;
     private GameEndReason _gameEndReason = GameEndReason.None;
+    private Dictionary<ulong, int> _positionCounts = new();
     public bool IsSimulated { get; private set; } = false;
     private PieceColor currentColor = PieceColor.White;
     private readonly IPlayer whitePlayer;
@@ -36,12 +37,30 @@ public class BitBoardGame : IGame {
     }
 
     public async Task Start() {
+        RecordPosition(); // Record starting position
         Visualize();
 
         if(GetCurrentPlayer().IsAI()) {
             await RunNextMoveIfAI();
         }
     }
+    
+    private ulong GetPositionHash() => board.OccupiedSquares ^ (board.WhitePieces << 1) ^ (ulong)currentColor;
+    
+    private void RecordPosition() {
+        var hash = GetPositionHash();
+        _positionCounts[hash] = _positionCounts.GetValueOrDefault(hash) + 1;
+    }
+    
+    private void UnrecordPosition() {
+        var hash = GetPositionHash();
+        if (_positionCounts.TryGetValue(hash, out var count) && count > 1)
+            _positionCounts[hash] = count - 1;
+        else
+            _positionCounts.Remove(hash);
+    }
+    
+    private bool IsThreefoldRepetition() => _positionCounts.GetValueOrDefault(GetPositionHash()) >= 3;
 
     public List<(Piece, Position)> GetPiecesForColor(PieceColor color) {
         return board.GetPiecesForColor(color);
@@ -74,10 +93,12 @@ public class BitBoardGame : IGame {
     public UndoMoveInfo DoMoveForSimulation(Move move) {
         var undoInfo = board.ApplyMove(move);
         currentColor = currentColor == PieceColor.White ? PieceColor.Black : PieceColor.White;
+        RecordPosition();
         return undoInfo;
     }
 
     public void UndoMoveForSimulation(UndoMoveInfo undoInfo) {
+        UnrecordPosition();
         board.UndoMove(undoInfo);
         currentColor = currentColor == PieceColor.White ? PieceColor.Black : PieceColor.White;
     }
@@ -88,6 +109,7 @@ public class BitBoardGame : IGame {
                     ? PieceColor.Black 
                     : PieceColor.White;
 
+        RecordPosition(); // Record position after color change
         ValidateIfGameIsOver();
 
         if(IsFinished()) {
@@ -111,6 +133,13 @@ public class BitBoardGame : IGame {
             Winner = null;
             IsGameActive = false;
             _gameEndReason = GameEndReason.FiftyMovesWithoutCapture;
+            return;
+        }
+        
+        if(IsThreefoldRepetition()) {
+            Winner = null;
+            IsGameActive = false;
+            _gameEndReason = GameEndReason.ThreefoldRepetition;
             return;
         }
 
@@ -175,7 +204,9 @@ public class BitBoardGame : IGame {
 
     public bool IsDraw() {
         return _gameEndReason == GameEndReason.FiftyMovesWithoutCapture 
-            || _gameEndReason == GameEndReason.Stalemate;
+            || _gameEndReason == GameEndReason.Stalemate
+            || _gameEndReason == GameEndReason.ThreefoldRepetition
+            || IsThreefoldRepetition(); 
     }
 
     public List<Piece> GetCapturedPieces() {
@@ -217,6 +248,7 @@ public class BitBoardGame : IGame {
             board = (IVisualizedBoard)board.Clone(),
             currentColor = currentColor,
             _moveHistory = new Stack<(Move move, UndoMoveInfo undoMoveInfo)>(_moveHistory),
+            _positionCounts = new Dictionary<ulong, int>(_positionCounts),
             Winner = Winner,
             NextMoveHandler = NextMoveHandler,
             Visualizer = Visualizer,

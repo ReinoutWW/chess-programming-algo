@@ -17,4 +17,6 @@ public enum GameEndReason {
     DrawByStalemate,
     [Description("Draw by insufficient material")]
     DrawByInsufficientMaterial,
+    [Description("Threefold repetition")]
+    ThreefoldRepetition,
 }
