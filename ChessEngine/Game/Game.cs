@@ -21,6 +21,7 @@ public class Game : IGame {
     private int _delayPerMoveInMilliseconds = 100;
     private string starterPosition = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
     public Func<Task>? NextMoveHandler { get; set; }
+    public Func<Task>? BeforeAIMoveHandler { get; set; }
     private bool IsGameActive = true;
     public IGameVisualizer? Visualizer { get; set; } = new GameVisualizer();
     public IPlayer? Winner { get; private set; } = null;
@@ -119,6 +120,10 @@ public class Game : IGame {
 
     private async Task RunNextMoveIfAI() {
         if(GetCurrentPlayer().IsAI() && !IsSimulated) {
+            if (BeforeAIMoveHandler != null) {
+                await BeforeAIMoveHandler();
+            }
+            
             await Task.Delay(_delayPerMoveInMilliseconds);
 
             var move = await GetCurrentPlayer().GetMove(this);
