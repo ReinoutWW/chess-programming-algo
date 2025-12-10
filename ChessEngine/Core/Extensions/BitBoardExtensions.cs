@@ -69,4 +69,9 @@ public static class BitBoardExtensions {
     public static int GetMagicIndex(this ulong value, ulong magic, int shift) {
         return (int)((value * magic) >> shift);
     }
+
+    /// <summary>
+    /// Converts a square index (0-63) to a single-bit bitboard.
+    /// </summary>
+    public static ulong ToBitboard(this int square) => 1UL << square;
 }

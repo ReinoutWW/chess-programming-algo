@@ -6,24 +6,25 @@
 <PageTitle>Chess Game</PageTitle>
 
 @code {
-    private List<(string Label, Func<PieceColor, IPlayer> Factory)> playerTypes = new()
+    // IsFastAI: true = instant moves (Random, Greedy), benefits from delay for watchability
+    private List<(string Label, Func<PieceColor, IPlayer> Factory, bool IsFastAI)> playerTypes = new()
     {
-        ("Human", color => new HumanBlazorPlayer(color)),
-        ("Random AI", color => new RandomMovePlayer(color)),
-        ("Very Random AI", color => new VeryRandomMovePlayer(color)),
-        ("Greedy AI", color => new GreedyPlayer(color)),
-        ("MiniMax AI with Material Eval", color => new MiniMaxPlayer(color, new MaterialEvaluation())),
-        ("MiniMax AI with Material Eval + Ordering", color => new MiniMaxPlayerOrdering(color, new MaterialEvaluation())),
-        ("MiniMax AI with Material Eval (stats)", color => new MiniMaxPlayerWithStatistics(color, new MaterialEvaluation())),
-        ("MiniMax AI with MatMob Eval", color => new MiniMaxPlayer(color, new MaterialMobilityFunction())),
-        ("Iterative Deepening AI (1s)", color => new IterativeDeepeningPlayer(color, 1.0, new MaterialEvaluation())),
-        ("Iterative Deepening AI (5s)", color => new IterativeDeepeningPlayer(color, 5.0, new MaterialEvaluation())),
-        ("Iterative Deepening AI (10s)", color => new IterativeDeepeningPlayer(color, 10.0, new MaterialEvaluation())),
-        ("Iterative Deepening AI (30s)", color => new IterativeDeepeningPlayer(color, 30.0, new MaterialEvaluation())),
-        ("Iterative Deepening AI (60s)", color => new IterativeDeepeningPlayer(color, 60.0, new MaterialEvaluation())),
-        ("ID + Quiescence (1s)", color => new IterativeDeepeningWithQuiescence(color, 1.0, new MaterialEvaluation())),
-        ("ID + Quiescence (10s)", color => new IterativeDeepeningWithQuiescence(color, 10.0, new MaterialEvaluation())),
-        ("ID + Quiescence (30s)", color => new IterativeDeepeningWithQuiescence(color, 30.0, new MaterialEvaluation()))
+        ("Human", color => new HumanBlazorPlayer(color), false),
+        ("Random AI", color => new RandomMovePlayer(color), true),
+        ("Very Random AI", color => new VeryRandomMovePlayer(color), true),
+        ("Greedy AI", color => new GreedyPlayer(color), true),
+        ("MiniMax AI with Material Eval", color => new MiniMaxPlayer(color, new MaterialEvaluation()), false),
+        ("MiniMax AI with Material Eval + Ordering", color => new MiniMaxPlayerOrdering(color, new MaterialEvaluation()), false),
+        ("MiniMax AI with Material Eval (stats)", color => new MiniMaxPlayerWithStatistics(color, new MaterialEvaluation()), false),
+        ("MiniMax AI with MatMob Eval", color => new MiniMaxPlayer(color, new MaterialMobilityFunction()), false),
+        ("Iterative Deepening AI (1s)", color => new IterativeDeepeningPlayer(color, 1.0, new MaterialEvaluation()), false),
+        ("Iterative Deepening AI (5s)", color => new IterativeDeepeningPlayer(color, 5.0, new MaterialEvaluation()), false),
+        ("Iterative Deepening AI (10s)", color => new IterativeDeepeningPlayer(color, 10.0, new MaterialEvaluation()), false),
+        ("Iterative Deepening AI (30s)", color => new IterativeDeepeningPlayer(color, 30.0, new MaterialEvaluation()), false),
+        ("Iterative Deepening AI (60s)", color => new IterativeDeepeningPlayer(color, 60.0, new MaterialEvaluation()), false),
+        ("ID + Quiescence (1s)", color => new IterativeDeepeningWithQuiescence(color, 1.0, new MaterialEvaluation()), false),
+        ("ID + Quiescence (10s)", color => new IterativeDeepeningWithQuiescence(color, 10.0, new MaterialEvaluation()), false),
+        ("ID + Quiescence (30s)", color => new IterativeDeepeningWithQuiescence(color, 30.0, new MaterialEvaluation()), false)
     };
 
     private string? selectedWhiteLabel;
@@ -35,14 +36,23 @@
     private bool gameStarted = false;
 
     private bool ReadyToStart => whitePlayer != null && blackPlayer != null;
+    private bool HasAIPlayer => (whitePlayer != null && whitePlayer.IsAI()) || (blackPlayer != null && blackPlayer.IsAI());
+    
+    private bool HasFastAI {
+        get {
+            var whiteOpt = playerTypes.FirstOrDefault(o => o.Label == selectedWhiteLabel);
+            var blackOpt = playerTypes.FirstOrDefault(o => o.Label == selectedBlackLabel);
+            return whiteOpt.IsFastAI || blackOpt.IsFastAI;
+        }
+    }
 
     private void OnPlayerSelectionChanged()
     {
         var whiteOpt = playerTypes.FirstOrDefault(option => option.Label == selectedWhiteLabel);
-        whitePlayer = whiteOpt.Factory != null ? whiteOpt.Factory.Invoke(PieceColor.White) : null;
+        whitePlayer = whiteOpt.Factory?.Invoke(PieceColor.White);
 
         var blackOpt = playerTypes.FirstOrDefault(option => option.Label == selectedBlackLabel);
-        blackPlayer = blackOpt.Factory != null ? blackOpt.Factory.Invoke(PieceColor.Black) : null;
+        blackPlayer = blackOpt.Factory?.Invoke(PieceColor.Black);
     }
     
     private void StartGame()
@@ -90,20 +100,23 @@
                 </div>
             </div>
 
-            <div class="speed-selector">
-                <label class="speed-label">Game Speed</label>
-                <div class="speed-toggle">
-                    <button class="speed-option @(selectedSpeed == "lightning" ? "active" : "")" @onclick='() => SetSpeed("lightning")'>
-                        <span class="speed-text">Lightning</span>
-                    </button>
-                    <button class="speed-option @(selectedSpeed == "normal" ? "active" : "")" @onclick='() => SetSpeed("normal")'>
-                        <span class="speed-text">Normal</span>
-                    </button>
-                    <button class="speed-option @(selectedSpeed == "slow" ? "active" : "")" @onclick='() => SetSpeed("slow")'>
-                        <span class="speed-text">Slow</span>
-                    </button>
+            @if (HasAIPlayer) {
+                <div class="speed-selector">
+                    <label class="speed-label">AI Move Delay</label>
+                    <span class="speed-hint">@(HasFastAI ? "Slow down fast AIs so you can follow the game" : "Add a pause between AI moves")</span>
+                    <div class="speed-toggle">
+                        <button class="speed-option @(selectedSpeed == "lightning" ? "active" : "")" @onclick='() => SetSpeed("lightning")'>
+                            <span class="speed-text">Instant</span>
+                        </button>
+                        <button class="speed-option @(selectedSpeed == "normal" ? "active" : "")" @onclick='() => SetSpeed("normal")'>
+                            <span class="speed-text">100ms</span>
+                        </button>
+                        <button class="speed-option @(selectedSpeed == "slow" ? "active" : "")" @onclick='() => SetSpeed("slow")'>
+                            <span class="speed-text">1 sec</span>
+                        </button>
+                    </div>
                 </div>
-            </div>
+            }
 
             @if (!ReadyToStart)
             {
@@ -130,6 +143,14 @@
             color: #86868b;
             text-transform: uppercase;
             letter-spacing: 0.02em;
+            margin-bottom: 0.25rem;
+            font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', sans-serif;
+        }
+
+        .speed-hint {
+            display: block;
+            font-size: 0.75rem;
+            color: #a1a1a6;
             margin-bottom: 0.75rem;
             font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', sans-serif;
         }

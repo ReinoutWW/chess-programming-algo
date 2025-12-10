@@ -182,25 +182,21 @@ public class BitBoard : IVisualizedBoard {
 
         var undoInfo = CreateUndoInfo(move, color.Value, piece.Value, capturedColor, capturedPiece);
 
-        // Handle en passant capture
         if (piece == PieceType.Pawn && to == _enPassantSquare) {
             undoInfo.WasEnPassant = true;
-            var enemyColor = color == PieceColor.White ? PieceColor.Black : PieceColor.White;
+            var enemyColor = color.Value.OpponentColor();
             int capturedSquare = color == PieceColor.White ? to - 8 : to + 8;
             RemovePiece(enemyColor, PieceType.Pawn, capturedSquare);
             undoInfo.CapturedType = PieceType.Pawn;
             undoInfo.CapturedColor = enemyColor;
         }
 
-        // Remove captured piece (if any)
         if (capturedColor != null && capturedPiece != null)
             RemovePiece(capturedColor.Value, capturedPiece.Value, to);
 
-        // Move the piece (or place promoted piece)
         RemovePiece(color.Value, piece.Value, from);
         PlacePiece(color.Value, move.PromotedTo ?? piece.Value, to);
 
-        // Handle castling rook movement
         if (piece == PieceType.King && Math.Abs(move.To.Column - move.From.Column) == 2) {
             undoInfo.WasCastling = true;
             ApplyCastlingRookMove(color.Value, move.To.Column > move.From.Column);
@@ -239,13 +235,11 @@ public class BitBoard : IVisualizedBoard {
     }
 
     private void UpdateCastlingRights(PieceColor color, PieceType piece, int from, PieceType? capturedPiece, int to) {
-        // King moved - lose both castling rights
         if (piece == PieceType.King) {
             if (color == PieceColor.White) { _whiteKingSideCastle = false; _whiteQueenSideCastle = false; }
             else { _blackKingSideCastle = false; _blackQueenSideCastle = false; }
         }
 
-        // Rook moved - lose that side's castling right
         if (piece == PieceType.Rook) {
             if (from == 0) _whiteQueenSideCastle = false;
             if (from == 7) _whiteKingSideCastle = false;
@@ -253,7 +247,6 @@ public class BitBoard : IVisualizedBoard {
             if (from == 63) _blackKingSideCastle = false;
         }
 
-        // Rook captured - lose that side's castling right
         if (capturedPiece == PieceType.Rook) {
             if (to == 0) _whiteQueenSideCastle = false;
             if (to == 7) _whiteKingSideCastle = false;
@@ -263,7 +256,6 @@ public class BitBoard : IVisualizedBoard {
     }
 
     private void UpdateEnPassantSquare(PieceColor color, PieceType piece, int from, int to) {
-        // Set en passant square only on pawn double push
         bool isDoublePush = piece == PieceType.Pawn && Math.Abs(to - from) == 16;
         _enPassantSquare = isDoublePush 
             ? (color == PieceColor.White ? to - 8 : to + 8) 
@@ -313,9 +305,8 @@ public class BitBoard : IVisualizedBoard {
 
     public bool IsSquareAttacked(PieceColor color, Position position) {
         var square = position.ToBitPosition();
-        var enemyColor = color == PieceColor.White ? PieceColor.Black : PieceColor.White;
+        var enemyColor = color.OpponentColor();
         
-        // Now reuse enemyColor:
         if ((KNIGHT_ATTACKS[square] & _pieces[(int)enemyColor, (int)PieceType.Knight]) != 0)
             return true;
         
@@ -334,7 +325,7 @@ public class BitBoard : IVisualizedBoard {
         if ((queenAttacks & _pieces[(int)enemyColor, (int)PieceType.Queen]) != 0)
             return true;
 
-        ulong squareBB = 1UL << square;
+        ulong squareBB = square.ToBitboard();
         ulong enemyPawns = _pieces[(int)enemyColor, (int)PieceType.Pawn];
 
         if (enemyColor == PieceColor.White) {
@@ -362,7 +353,7 @@ public class BitBoard : IVisualizedBoard {
         var king = _pieces[(int)color, (int)PieceType.King];
         var square = BitBoardExtensions.PopLsb(ref king);
 
-        return new Position(square / 8, square % 8);
+        return square.ToPosition();
     }
 
     /// <summary>
@@ -411,7 +402,7 @@ public class BitBoard : IVisualizedBoard {
     /// <param name="position">The position to get the knight attacks for</param>
     /// <returns>A bitboard of all squares the knight can attack</returns>
     private static ulong GetKnightAttacks(int position) {
-        var knight = 1UL << position;
+        var knight = position.ToBitboard();
 
         var NOT_AB_FILE = NOT_A_FILE & NOT_B_FILE;
         var NOT_GH_FILE = NOT_G_FILE & NOT_H_FILE;
@@ -450,7 +441,7 @@ public class BitBoard : IVisualizedBoard {
     /// <param name="position">The position to get the king attacks for</param>
     /// <returns>A bitboard of all squares the king can attack</returns>
     private static ulong GetKingAttacks(int position) {
-        var king = 1UL << position;
+        var king = position.ToBitboard();
    
         var possibleMoveOne = (king & NOT_H_FILE) << 1;
         var possibleMoveTwo = (king & NOT_A_FILE) >> 1;
@@ -610,38 +601,32 @@ public class BitBoard : IVisualizedBoard {
     private void GetEnPassantMoves(PieceColor color, ulong pawns, List<Move> moves) {
         if(_enPassantSquare == -1) return;
 
-        ulong epSquareBB = 1UL << _enPassantSquare;
+        ulong epSquareBB = _enPassantSquare.ToBitboard();
         
         // Check if any pawn can capture en passant
         if(color == PieceColor.White) {
-            // White pawns attack from below (ep square - 7 or ep square - 9)
             ulong leftAttacker = (epSquareBB & NOT_A_FILE) >> 9;
             ulong rightAttacker = (epSquareBB & NOT_H_FILE) >> 7;
             
             if((leftAttacker & pawns) != 0) {
                 int fromSquare = _enPassantSquare - 9;
-                moves.Add(new Move(new Position(fromSquare / 8, fromSquare % 8), 
-                                   new Position(_enPassantSquare / 8, _enPassantSquare % 8)));
+                moves.Add(new Move(fromSquare.ToPosition(), _enPassantSquare.ToPosition()));
             }
             if((rightAttacker & pawns) != 0) {
                 int fromSquare = _enPassantSquare - 7;
-                moves.Add(new Move(new Position(fromSquare / 8, fromSquare % 8), 
-                                   new Position(_enPassantSquare / 8, _enPassantSquare % 8)));
+                moves.Add(new Move(fromSquare.ToPosition(), _enPassantSquare.ToPosition()));
             }
         } else {
-            // Black pawns attack from above (ep square + 7 or ep square + 9)
             ulong leftAttacker = (epSquareBB & NOT_H_FILE) << 9;
             ulong rightAttacker = (epSquareBB & NOT_A_FILE) << 7;
             
             if((leftAttacker & pawns) != 0) {
                 int fromSquare = _enPassantSquare + 9;
-                moves.Add(new Move(new Position(fromSquare / 8, fromSquare % 8), 
-                                   new Position(_enPassantSquare / 8, _enPassantSquare % 8)));
+                moves.Add(new Move(fromSquare.ToPosition(), _enPassantSquare.ToPosition()));
             }
             if((rightAttacker & pawns) != 0) {
                 int fromSquare = _enPassantSquare + 7;
-                moves.Add(new Move(new Position(fromSquare / 8, fromSquare % 8), 
-                                   new Position(_enPassantSquare / 8, _enPassantSquare % 8)));
+                moves.Add(new Move(fromSquare.ToPosition(), _enPassantSquare.ToPosition()));
             }
         }
     }
@@ -656,13 +641,13 @@ public class BitBoard : IVisualizedBoard {
         while(singlePush != 0) {
             int toSquare = BitBoardExtensions.PopLsb(ref singlePush);
             int fromSquare = toSquare - (color == PieceColor.White ? 8 : -8);
-            var from = new Position(fromSquare / 8, fromSquare % 8);
-            var to = new Position(toSquare / 8, toSquare % 8);
-            
-            moves.Add(new Move(from, to, PieceType.Queen));
-            moves.Add(new Move(from, to, PieceType.Rook));
-            moves.Add(new Move(from, to, PieceType.Bishop));
-            moves.Add(new Move(from, to, PieceType.Knight));
+            var fromPosition = fromSquare.ToPosition();
+            var toPosition = toSquare.ToPosition();
+
+            moves.Add(new Move(fromPosition, toPosition, PieceType.Queen));
+            moves.Add(new Move(fromPosition, toPosition, PieceType.Rook));
+            moves.Add(new Move(fromPosition, toPosition, PieceType.Bishop));
+            moves.Add(new Move(fromPosition, toPosition, PieceType.Knight));
         }
 
         var leftAttack = pawns & (color == PieceColor.White ? NOT_A_FILE : NOT_H_FILE);
@@ -676,23 +661,26 @@ public class BitBoard : IVisualizedBoard {
         while(leftAttack != 0) {
             int toSquare = BitBoardExtensions.PopLsb(ref leftAttack);
             int fromSquare = toSquare - (color == PieceColor.White ? 7 : -7);
-            var from = new Position(fromSquare / 8, fromSquare % 8);
-            var to = new Position(toSquare / 8, toSquare % 8);
-            moves.Add(new Move(from, to, PieceType.Queen));
-            moves.Add(new Move(from, to, PieceType.Rook));
-            moves.Add(new Move(from, to, PieceType.Bishop));
-            moves.Add(new Move(from, to, PieceType.Knight));
+
+            var fromPosition = fromSquare.ToPosition();
+            var toPosition = toSquare.ToPosition();
+
+            moves.Add(new Move(fromPosition, toPosition, PieceType.Queen));
+            moves.Add(new Move(fromPosition, toPosition, PieceType.Rook));
+            moves.Add(new Move(fromPosition, toPosition, PieceType.Bishop));
+            moves.Add(new Move(fromPosition, toPosition, PieceType.Knight));
         }
 
         while(rightAttack != 0) {
             int toSquare = BitBoardExtensions.PopLsb(ref rightAttack);
             int fromSquare = toSquare - (color == PieceColor.White ? 9 : -9);
-            var from = new Position(fromSquare / 8, fromSquare % 8);
-            var to = new Position(toSquare / 8, toSquare % 8);
-            moves.Add(new Move(from, to, PieceType.Queen));
-            moves.Add(new Move(from, to, PieceType.Rook));
-            moves.Add(new Move(from, to, PieceType.Bishop));
-            moves.Add(new Move(from, to, PieceType.Knight));
+            var fromPosition = fromSquare.ToPosition();
+            var toPosition = toSquare.ToPosition();
+
+            moves.Add(new Move(fromPosition, toPosition, PieceType.Queen));
+            moves.Add(new Move(fromPosition, toPosition, PieceType.Rook));
+            moves.Add(new Move(fromPosition, toPosition, PieceType.Bishop));
+            moves.Add(new Move(fromPosition, toPosition, PieceType.Knight));
         }
     }
 
@@ -722,17 +710,13 @@ public class BitBoard : IVisualizedBoard {
         while(leftAttacks != 0) {
             int toSquare = BitBoardExtensions.PopLsb(ref leftAttacks);
             int fromSquare = toSquare - leftShiftDirection;
-            var from = new Position(fromSquare / 8, fromSquare % 8);
-            var to = new Position(toSquare / 8, toSquare % 8);
-            moves.Add(new Move(from, to));
+            moves.Add(new Move(fromSquare.ToPosition(), toSquare.ToPosition()));
         }
         
         while(rightAttacks != 0) {
             int toSquare = BitBoardExtensions.PopLsb(ref rightAttacks);
             int fromSquare = toSquare - rightShiftDirection;
-            var from = new Position(fromSquare / 8, fromSquare % 8);
-            var to = new Position(toSquare / 8, toSquare % 8);
-            moves.Add(new Move(from, to));
+            moves.Add(new Move(fromSquare.ToPosition(), toSquare.ToPosition()));
         }
     }
 
@@ -743,9 +727,7 @@ public class BitBoard : IVisualizedBoard {
         while(singlePush != 0) {
             int toSquare = BitBoardExtensions.PopLsb(ref singlePush);
             int fromSquare = toSquare - shiftDirection; 
-            var from = new Position(fromSquare / 8, fromSquare % 8);
-            var to = new Position(toSquare / 8, toSquare % 8);
-            moves.Add(new Move(from, to));
+            moves.Add(new Move(fromSquare.ToPosition(), toSquare.ToPosition()));
         }
     }
 
@@ -758,9 +740,7 @@ public class BitBoard : IVisualizedBoard {
         while(doublePush != 0) {
             int toSquare = BitBoardExtensions.PopLsb(ref doublePush);
             int fromSquare = toSquare - shiftDirection;
-            var from = new Position(fromSquare / 8, fromSquare % 8);
-            var to = new Position(toSquare / 8, toSquare % 8);
-            moves.Add(new Move(from, to));
+            moves.Add(new Move(fromSquare.ToPosition(), toSquare.ToPosition()));
         }
     }
 
@@ -768,17 +748,13 @@ public class BitBoard : IVisualizedBoard {
         var knights = _pieces[(int)color, (int)PieceType.Knight];
 
         while(knights != 0) {
-          int fromSquare = BitBoardExtensions.PopLsb(ref knights);
+            int fromSquare = BitBoardExtensions.PopLsb(ref knights);
             ulong attacks = KNIGHT_ATTACKS[fromSquare];
             attacks &= ~(color == PieceColor.White ? _whitePieces : _blackPieces);
             
             while (attacks != 0) {
                 int toSquare = BitBoardExtensions.PopLsb(ref attacks);
-
-                var from = new Position(fromSquare / 8, fromSquare % 8);
-                var to = new Position(toSquare / 8, toSquare % 8);
-                
-                moves.Add(new Move(from, to));
+                moves.Add(new Move(fromSquare.ToPosition(), toSquare.ToPosition()));
             }
         }
     }
@@ -793,11 +769,7 @@ public class BitBoard : IVisualizedBoard {
             
             while(attacks != 0) {
                 int toSquare = BitBoardExtensions.PopLsb(ref attacks);
-
-                var from = new Position(fromSquare / 8, fromSquare % 8);
-                var to = new Position(toSquare / 8, toSquare % 8);
-                
-                moves.Add(new Move(from, to));
+                moves.Add(new Move(fromSquare.ToPosition(), toSquare.ToPosition()));
             }
         }
     }
@@ -812,11 +784,7 @@ public class BitBoard : IVisualizedBoard {
             
             while(attacks != 0) {
                 int toSquare = BitBoardExtensions.PopLsb(ref attacks);
-
-                var from = new Position(fromSquare / 8, fromSquare % 8);
-                var to = new Position(toSquare / 8, toSquare % 8);
-                
-                moves.Add(new Move(from, to));
+                moves.Add(new Move(fromSquare.ToPosition(), toSquare.ToPosition()));
             }
         }
     }
@@ -831,11 +799,7 @@ public class BitBoard : IVisualizedBoard {
             
             while(attacks != 0) {
                 int toSquare = BitBoardExtensions.PopLsb(ref attacks);
-
-                var from = new Position(fromSquare / 8, fromSquare % 8);
-                var to = new Position(toSquare / 8, toSquare % 8);
-                
-                moves.Add(new Move(from, to));
+                moves.Add(new Move(fromSquare.ToPosition(), toSquare.ToPosition()));
             }
         }
     }
@@ -851,11 +815,7 @@ public class BitBoard : IVisualizedBoard {
             
             while(attacks != 0) {
                 int toSquare = BitBoardExtensions.PopLsb(ref attacks);
-
-                var from = new Position(fromSquare / 8, fromSquare % 8);
-                var to = new Position(toSquare / 8, toSquare % 8);
-                
-                moves.Add(new Move(from, to));
+                moves.Add(new Move(fromSquare.ToPosition(), toSquare.ToPosition()));
             }
         }
 
@@ -866,9 +826,8 @@ public class BitBoard : IVisualizedBoard {
         if(king == 0) return;
         
         int kingSquare = BitBoardExtensions.PopLsb(ref king);
-        var kingPos = new Position(kingSquare / 8, kingSquare % 8);
         
-        if(IsSquareAttacked(color, kingPos)) return;
+        if(IsSquareAttacked(color, kingSquare.ToPosition())) return;
 
         if(color == PieceColor.White)
         {
@@ -1183,7 +1142,7 @@ public class BitBoard : IVisualizedBoard {
     /// Gets pawn attacks for a square (diagonal attack squares only).
     /// </summary>
     public static ulong GetPawnAttacksForSquare(int square, PieceColor color) {
-        ulong pawn = 1UL << square;
+        ulong pawn = square.ToBitboard();
         if (color == PieceColor.White) {
             ulong leftAttack = (pawn & NOT_A_FILE) << 7;
             ulong rightAttack = (pawn & NOT_H_FILE) << 9;

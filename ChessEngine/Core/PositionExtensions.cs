@@ -37,4 +37,12 @@ public static class PositionExtensions {
 
     private static int ColumnToIndex(char column) 
         => Columns.IndexOf(column);
+
+    /// <summary>
+    /// Converts a bit position (0-63) to a Position object.
+    /// </summary>
+    /// <param name="square">The square index (0 = a1, 63 = h8)</param>
+    /// <returns>A Position with row and column</returns>
+    public static Position ToPosition(this int square) 
+        => new Position(square / 8, square % 8);
 }
