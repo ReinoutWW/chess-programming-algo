@@ -2,7 +2,7 @@
 <html lang='en'>
 <head>
 <meta charset='utf-8' />
-<title>ChessEngine.Benchmarks.BoardComparisonBenchmarks-20251210-132516</title>
+<title>ChessEngine.Benchmarks.BoardComparisonBenchmarks-20251210-132836</title>
 
 <style type="text/css">
 	table { border-collapse: collapse; display: block; width: 100%; overflow: auto; }
@@ -26,20 +26,20 @@ WarmupCount=3
 <table>
 <thead><tr><th>Method      </th><th>Categories  </th><th>Mean  </th><th>Error  </th><th>StdDev</th><th>Rank</th><th>Gen0</th><th>Gen1</th><th>Allocated</th>
 </tr>
-</thead><tbody><tr><td>&#39;Board (2D Array)&#39;</td><td>ApplyUndo</td><td>32.45 ns</td><td>20.814 ns</td><td>1.141 ns</td><td>1</td><td>-</td><td>-</td><td>-</td>
-</tr><tr><td>&#39;BitBoard (Magic)&#39;</td><td>ApplyUndo</td><td>37.57 ns</td><td>46.897 ns</td><td>2.571 ns</td><td>1</td><td>0.0017</td><td>-</td><td>88 B</td>
-</tr><tr><td>&#39;BitBoard (Magic)&#39;</td><td>Clone</td><td>87.54 ns</td><td>7.362 ns</td><td>0.404 ns</td><td>1</td><td>0.0064</td><td>-</td><td>328 B</td>
-</tr><tr><td>&#39;Board (2D Array)&#39;</td><td>Clone</td><td>447.98 ns</td><td>228.341 ns</td><td>12.516 ns</td><td>2</td><td>0.0353</td><td>-</td><td>1776 B</td>
-</tr><tr><td>&#39;Board (2D Array)&#39;</td><td>GetPiecesForColor</td><td>185.77 ns</td><td>249.425 ns</td><td>13.672 ns</td><td>1</td><td>0.0186</td><td>-</td><td>936 B</td>
-</tr><tr><td>&#39;BitBoard (Magic)&#39;</td><td>GetPiecesForColor</td><td>547.90 ns</td><td>255.308 ns</td><td>13.994 ns</td><td>2</td><td>0.0639</td><td>-</td><td>3240 B</td>
-</tr><tr><td>&#39;BitBoard (Magic)&#39;</td><td>IsInCheck</td><td>12.90 ns</td><td>25.536 ns</td><td>1.400 ns</td><td>1</td><td>0.0005</td><td>-</td><td>24 B</td>
-</tr><tr><td>&#39;Board (2D Array)&#39;</td><td>IsInCheck</td><td>656.12 ns</td><td>372.057 ns</td><td>20.394 ns</td><td>2</td><td>0.0629</td><td>-</td><td>3160 B</td>
-</tr><tr><td>&#39;BitBoard (Magic)&#39;</td><td>LoadFEN</td><td>489.29 ns</td><td>224.154 ns</td><td>12.287 ns</td><td>1</td><td>0.0248</td><td>-</td><td>1288 B</td>
-</tr><tr><td>&#39;Board (2D Array)&#39;</td><td>LoadFEN</td><td>744.51 ns</td><td>446.224 ns</td><td>24.459 ns</td><td>2</td><td>0.0582</td><td>-</td><td>2920 B</td>
-</tr><tr><td>&#39;BitBoard (Magic)&#39;</td><td>MoveGen - MidGame</td><td>419.87 ns</td><td>528.251 ns</td><td>28.955 ns</td><td>1</td><td>0.0677</td><td>0.0005</td><td>3416 B</td>
-</tr><tr><td>&#39;Board (2D Array)&#39;</td><td>MoveGen - MidGame</td><td>24,820.43 ns</td><td>15,921.721 ns</td><td>872.723 ns</td><td>2</td><td>2.4719</td><td>0.0305</td><td>125040 B</td>
-</tr><tr><td>&#39;BitBoard (Magic)&#39;</td><td>MoveGen - Starting</td><td>242.68 ns</td><td>35.911 ns</td><td>1.968 ns</td><td>1</td><td>0.0439</td><td>-</td><td>2224 B</td>
-</tr><tr><td>&#39;Board (2D Array)&#39;</td><td>MoveGen - Starting</td><td>24,859.06 ns</td><td>8,188.870 ns</td><td>448.860 ns</td><td>2</td><td>2.4109</td><td>-</td><td>122080 B</td>
+</thead><tbody><tr><td>&#39;Board (2D Array)&#39;</td><td>ApplyUndo</td><td>29.91 ns</td><td>4.607 ns</td><td>0.253 ns</td><td>1</td><td>-</td><td>-</td><td>-</td>
+</tr><tr><td>&#39;BitBoard (Magic)&#39;</td><td>ApplyUndo</td><td>34.46 ns</td><td>6.028 ns</td><td>0.330 ns</td><td>1</td><td>0.0017</td><td>-</td><td>88 B</td>
+</tr><tr><td>&#39;BitBoard (Magic)&#39;</td><td>Clone</td><td>88.08 ns</td><td>7.391 ns</td><td>0.405 ns</td><td>1</td><td>0.0064</td><td>-</td><td>328 B</td>
+</tr><tr><td>&#39;Board (2D Array)&#39;</td><td>Clone</td><td>405.30 ns</td><td>147.016 ns</td><td>8.058 ns</td><td>2</td><td>0.0353</td><td>-</td><td>1776 B</td>
+</tr><tr><td>&#39;Board (2D Array)&#39;</td><td>GetPiecesForColor</td><td>179.07 ns</td><td>152.008 ns</td><td>8.332 ns</td><td>1</td><td>0.0186</td><td>-</td><td>936 B</td>
+</tr><tr><td>&#39;BitBoard (Magic)&#39;</td><td>GetPiecesForColor</td><td>501.03 ns</td><td>67.923 ns</td><td>3.723 ns</td><td>2</td><td>0.0639</td><td>-</td><td>3240 B</td>
+</tr><tr><td>&#39;BitBoard (Magic)&#39;</td><td>IsInCheck</td><td>10.24 ns</td><td>0.692 ns</td><td>0.038 ns</td><td>1</td><td>0.0005</td><td>-</td><td>24 B</td>
+</tr><tr><td>&#39;Board (2D Array)&#39;</td><td>IsInCheck</td><td>583.38 ns</td><td>137.848 ns</td><td>7.556 ns</td><td>2</td><td>0.0629</td><td>-</td><td>3160 B</td>
+</tr><tr><td>&#39;BitBoard (Magic)&#39;</td><td>LoadFEN</td><td>430.36 ns</td><td>102.683 ns</td><td>5.628 ns</td><td>1</td><td>0.0253</td><td>-</td><td>1288 B</td>
+</tr><tr><td>&#39;Board (2D Array)&#39;</td><td>LoadFEN</td><td>661.34 ns</td><td>103.354 ns</td><td>5.665 ns</td><td>2</td><td>0.0582</td><td>-</td><td>2920 B</td>
+</tr><tr><td>&#39;BitBoard (Magic)&#39;</td><td>MoveGen - MidGame</td><td>438.84 ns</td><td>100.996 ns</td><td>5.536 ns</td><td>1</td><td>0.0677</td><td>0.0005</td><td>3416 B</td>
+</tr><tr><td>&#39;Board (2D Array)&#39;</td><td>MoveGen - MidGame</td><td>24,419.07 ns</td><td>5,610.865 ns</td><td>307.550 ns</td><td>2</td><td>2.4719</td><td>0.0305</td><td>125040 B</td>
+</tr><tr><td>&#39;BitBoard (Magic)&#39;</td><td>MoveGen - Starting</td><td>266.96 ns</td><td>280.886 ns</td><td>15.396 ns</td><td>1</td><td>0.0439</td><td>-</td><td>2224 B</td>
+</tr><tr><td>&#39;Board (2D Array)&#39;</td><td>MoveGen - Starting</td><td>26,064.66 ns</td><td>11,249.671 ns</td><td>616.632 ns</td><td>2</td><td>2.4109</td><td>-</td><td>122080 B</td>
 </tr></tbody></table>
 </body>
 </html>
