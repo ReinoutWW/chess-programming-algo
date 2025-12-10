@@ -172,48 +172,155 @@ public class Board {
     public Piece[,] GetPieces() => pieces;
 
     /// <summary>
-    /// Applies a move to the board and returns true if it was a capture
-    /// If it was a capture, the captured piece is added to the capturedPieces list
+    /// Generates all pseudo-legal moves for a color.
+    /// This iterates over all pieces and checks all 64 squares for each piece.
+    /// Note: This is much slower than bitboard move generation due to O(n*64) complexity.
     /// </summary>
-    /// <param name="move"></param>
-    /// <returns>True if it was a capture, false otherwise</returns>
-    /// <exception cref="InvalidMoveException"></exception>
-    public MoveResult ApplyMove(Move move) {
+    /// <param name="color">The color to generate moves for</param>
+    /// <returns>List of all valid moves for the specified color</returns>
+    public List<Move> GenerateMoves(PieceColor color) {
+        var moves = new List<Move>();
+        var colorPieces = GetPiecesForColor(color);
+
+        foreach (var (piece, position) in colorPieces) {
+            for (int row = 0; row < 8; row++) {
+                for (int col = 0; col < 8; col++) {
+                    var targetPosition = new Position(row, col);
+                    
+                    if (position.Row == row && position.Column == col) continue;
+
+                    var move = new Move(position, targetPosition);
+                    
+                    if (piece.Type == PieceType.Pawn && (row == 0 || row == 7)) {
+                        var testMove = new Move(position, targetPosition, PieceType.Queen);
+                        if (IsValidMove(testMove, color)) {
+                            moves.Add(new Move(position, targetPosition, PieceType.Queen));
+                            moves.Add(new Move(position, targetPosition, PieceType.Rook));
+                            moves.Add(new Move(position, targetPosition, PieceType.Bishop));
+                            moves.Add(new Move(position, targetPosition, PieceType.Knight));
+                        }
+                    } else if (IsValidMove(move, color)) {
+                        moves.Add(move);
+                    }
+                }
+            }
+        }
+
+        return moves;
+    }
+
+    /// <summary>
+    /// Checks if the king of the specified color is in check.
+    /// Uses the extension method approach for compatibility.
+    /// </summary>
+    public bool IsInCheck(PieceColor color) {
+        var opponentColor = color == PieceColor.White ? PieceColor.Black : PieceColor.White;
+        var enemyPieces = GetPiecesForColor(opponentColor);
+        
+        var king = GetPiecesForColor(color)
+            .FirstOrDefault(piece => piece.Item1.Type == PieceType.King);
+
+        if (king.Item1 == null) return false;
+
+        foreach (var enemyPiece in enemyPieces) {
+            if (IsValidMove(new Move(enemyPiece.Item2, king.Item2), opponentColor)) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /// <summary>
+    /// Applies a move to the board and returns undo information.
+    /// If it was a capture, the captured piece is added to the capturedPieces list.
+    /// </summary>
+    /// <param name="move">The move to apply</param>
+    /// <returns>BoardUndoInfo containing all state needed to undo this move</returns>
+    /// <exception cref="InvalidMoveException">Thrown if no piece at from position</exception>
+    public BoardUndoInfo ApplyMove(Move move) {
         var fromPiece = pieces[move.From.Row, move.From.Column];
 
         if(fromPiece == null) {
             throw new InvalidMoveException("No piece at from position");
         }
 
-        var moveResult = new MoveResult(false, null);
+        var undoInfo = new BoardUndoInfo {
+            Move = move,
+            MovedPiece = fromPiece,
+            MovedPieceHadMoved = fromPiece.HasMoved,
+            PreviousLastMove = lastMove
+        };
 
         if(IsCastlingMove(move, fromPiece.Color)) {
-            moveResult = ApplyCastlingMove(move);
+            ApplyCastlingMove(move, ref undoInfo);
         } else if(IsEnPassantMove(move)) {
-            moveResult = ApplyEnPassantMove(move);
+            ApplyEnPassantMove(move, ref undoInfo);
         } else if(IsPawnPromotionMove(move)) {
-            moveResult = ApplyPawnPromotionMove(move);
+            ApplyPawnPromotionMove(move, ref undoInfo);
         } else {
-            moveResult = ApplyRegularMove(move);
+            ApplyRegularMove(move, ref undoInfo);
         }
 
         lastMove = move;
 
-        return moveResult;
+        return undoInfo;
     }
 
-    private MoveResult ApplyPawnPromotionMove(Move move) {
+    /// <summary>
+    /// Undoes a move, restoring the board to its previous state.
+    /// </summary>
+    /// <param name="undo">The undo information from ApplyMove</param>
+    public void UndoMove(BoardUndoInfo undo) {
+        if (undo.WasPromotion) {
+            pieces[undo.Move.From.Row, undo.Move.From.Column] = undo.OriginalPawn;
+            pieces[undo.Move.To.Row, undo.Move.To.Column] = null;
+            undo.OriginalPawn!.HasMoved = undo.MovedPieceHadMoved;
+        } else {
+            pieces[undo.Move.From.Row, undo.Move.From.Column] = undo.MovedPiece;
+            pieces[undo.Move.To.Row, undo.Move.To.Column] = null;
+            undo.MovedPiece.HasMoved = undo.MovedPieceHadMoved;
+        }
+
+        if (undo.CapturedPiece != null && undo.CapturedPosition != null) {
+            pieces[undo.CapturedPosition.Row, undo.CapturedPosition.Column] = undo.CapturedPiece;
+            capturedPieces.Remove(undo.CapturedPiece);
+        }
+
+        if (undo.WasCastling && undo.CastlingRook != null && 
+            undo.RookFromPosition != null && undo.RookToPosition != null) {
+            pieces[undo.RookFromPosition.Row, undo.RookFromPosition.Column] = undo.CastlingRook;
+            pieces[undo.RookToPosition.Row, undo.RookToPosition.Column] = null;
+            undo.CastlingRook.HasMoved = undo.RookHadMoved;
+        }
+
+        lastMove = undo.PreviousLastMove;
+    }
+
+    /// <summary>
+    /// Legacy method that returns MoveResult for backward compatibility.
+    /// Use ApplyMove for new code that needs undo support.
+    /// </summary>
+    public MoveResult ApplyMoveWithResult(Move move) {
+        var undoInfo = ApplyMove(move);
+        return new MoveResult(undoInfo.CapturedPiece != null, undoInfo.CapturedPiece);
+    }
+
+    private void ApplyPawnPromotionMove(Move move, ref BoardUndoInfo undoInfo) {
         var fromPiece = pieces[move.From.Row, move.From.Column];
         var toPiece = pieces[move.To.Row, move.To.Column];
-        var moveResult = new MoveResult(false, null);
 
         if(fromPiece == null) {
             throw new InvalidMoveException("Invalid pawn promotion move");
         }
 
+        undoInfo.WasPromotion = true;
+        undoInfo.OriginalPawn = fromPiece;
+
         if(toPiece != null) {
             capturedPieces.Add(toPiece);
-            moveResult = new MoveResult(true, toPiece);
+            undoInfo.CapturedPiece = toPiece;
+            undoInfo.CapturedPosition = move.To;
         }
 
         var promotionChoice = move.PromotedTo 
@@ -221,8 +328,6 @@ public class Board {
 
         pieces[move.To.Row, move.To.Column] = CreatePromotedPiece(fromPiece.Color, promotionChoice);
         pieces[move.From.Row, move.From.Column] = null;
-
-        return moveResult;
     }
 
     private Piece CreatePromotedPiece(PieceColor color, PieceType pieceType) {
@@ -253,7 +358,7 @@ public class Board {
         return isDiagonal && destinationEmpty;
     }
 
-    private MoveResult ApplyEnPassantMove(Move move) {
+    private void ApplyEnPassantMove(Move move, ref BoardUndoInfo undoInfo) {
         var lastMoveThatWillBeEnpassanted = GetLastMove();
         
         if(lastMoveThatWillBeEnpassanted == null) {
@@ -267,51 +372,56 @@ public class Board {
             throw new InvalidMoveException("Invalid en passant move");
         }
 
+        undoInfo.WasEnPassant = true;
+        undoInfo.CapturedPiece = lastMovedPawn;
+        undoInfo.CapturedPosition = lastMoveThatWillBeEnpassanted.To;
+
         pieces[lastMoveThatWillBeEnpassanted.To.Row, lastMoveThatWillBeEnpassanted.To.Column] = null;
         pieces[move.From.Row, move.From.Column] = null;
         pieces[move.To.Row, move.To.Column] = movingPawn;
 
+        capturedPieces.Add(lastMovedPawn);
         movingPawn.HasMoved = true;
-
-        return new MoveResult(true, lastMovedPawn);
     }
 
-    private MoveResult ApplyCastlingMove(Move move) {
+    private void ApplyCastlingMove(Move move, ref BoardUndoInfo undoInfo) {
         var fromPiece = pieces[move.From.Row, move.From.Column];
-        var moveResult = new MoveResult(false, null);
 
         var isKingSideCastling = move.From.Column < move.To.Column;
         var rookColumn = isKingSideCastling ? 7 : 0;
+        var rookTargetColumn = isKingSideCastling ? 5 : 3;
         var rook = pieces[move.From.Row, rookColumn];
+
+        undoInfo.WasCastling = true;
+        undoInfo.CastlingRook = rook;
+        undoInfo.RookFromPosition = new Position(move.From.Row, rookColumn);
+        undoInfo.RookToPosition = new Position(move.From.Row, rookTargetColumn);
+        undoInfo.RookHadMoved = rook.HasMoved;
     
         pieces[move.To.Row, move.To.Column] = fromPiece;
         pieces[move.From.Row, move.From.Column] = null;
 
         pieces[move.From.Row, rookColumn] = null;
-        pieces[move.From.Row, isKingSideCastling ? 5 : 3] = rook;
+        pieces[move.From.Row, rookTargetColumn] = rook;
 
         fromPiece.HasMoved = true;
         rook.HasMoved = true;
-
-        return moveResult;
     }
 
-    private MoveResult ApplyRegularMove(Move move) {
+    private void ApplyRegularMove(Move move, ref BoardUndoInfo undoInfo) {
         var fromPiece = pieces[move.From.Row, move.From.Column];
         var toPiece = pieces[move.To.Row, move.To.Column];
-        var moveResult = new MoveResult(false, null);
 
         if(toPiece != null) {
             capturedPieces.Add(toPiece);
-            moveResult = new MoveResult(true, toPiece);
+            undoInfo.CapturedPiece = toPiece;
+            undoInfo.CapturedPosition = move.To;
         }
 
         pieces[move.To.Row, move.To.Column] = fromPiece;
         pieces[move.From.Row, move.From.Column] = null;
 
         fromPiece.HasMoved = true;
-
-        return moveResult;
     }
 
     /// <summary>
