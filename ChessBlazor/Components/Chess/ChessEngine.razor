@@ -5,10 +5,10 @@
 @using ChessBlazor.Components.Chess.Player
 @using ChessBlazor.Components.Chess.Services
 @using global::Chess.Programming.Ago.ChessEngines
+@using global::Chess.Programming.Ago.ChessEngines.Evaluations
 @using global::Chess.Programming.Ago.Core
 @inject IJSRuntime JS
 
-@* Welcome Overlay (Separate Component) *@
 @if (!isGameStarted) {
     <WelcomeOverlay 
         WhitePlayerName="@WhitePlayer.GetType().Name" 
@@ -16,7 +16,6 @@
         OnStartGame="StartGame" />
 }
 
-@* Game End Banner (Separate Component) *@
 @if (isGameStarted && game.IsFinished()) {
     <GameEndBanner 
         IsWin="@(game.Winner != null)" 
@@ -27,6 +26,25 @@
 }
 
 <div class="chess-engine-wrapper">
+    <div class="visualizer-sidebar @(isSidebarOpen ? "sidebar-open" : "")">
+        <div class="sidebar-header">
+            <span class="sidebar-title">Bitboard Visualizer</span>
+            <button class="sidebar-close" @onclick="ToggleSidebar">×</button>
+        </div>
+        <div class="sidebar-content">
+            <BitBoardVisualizer 
+                Board="@game.GetVisualizedBoard()" 
+                OnBitboardSelected="HandleBitboardSelected"
+                OnAttackModeToggled="HandleAttackModeToggled"
+                MagicInfo="@currentMagicInfo"
+                ActiveBitboard="@activeBitboard"
+                ActiveBitboardName="@activeBitboardName" />
+        </div>
+    </div>
+    @if (isSidebarOpen) {
+        <div class="sidebar-overlay" @onclick="ToggleSidebar"></div>
+    }
+
     <div class="chess-game-section">
         <div class="game-controls">
             @if (isGameStarted && !game.IsFinished()) {
@@ -64,7 +82,6 @@
             } 
         </div>
 
-        @* Binary Display Above Board *@
         @if (activeBitboard.HasValue) {
             <div class="binary-display-header">
                 <div class="binary-label-header">@activeBitboardName</div>
@@ -79,8 +96,8 @@
 
         <div class="game-layout">
             <div class="side-panel left-panel">
-                <div class="captured-pieces-panel captured-pieces-white">
-                    <h3>Captured by White</h3>
+                <div class="captured-pieces-panel">
+                    <div class="captured-label">White captured</div>
                     <div class="captured-pieces-list">
                         @foreach(var piece in game.GetCapturedPieces().Where(p => p.Color == PieceColor.Black)) {
                             <div class="captured-piece @(@piece.Type.ToString().ToLower())-@(@piece.Color.ToString().ToLower())"></div>
@@ -88,23 +105,46 @@
                     </div>
                 </div>
                 
-                @* Bitboard Visualizer Panel *@
-                <BitBoardVisualizer 
-                    Board="@game.GetVisualizedBoard()" 
-                    OnBitboardSelected="HandleBitboardSelected"
-                    OnAttackModeToggled="HandleAttackModeToggled"
-                    MagicInfo="@currentMagicInfo"
-                    ActiveBitboard="@activeBitboard"
-                    ActiveBitboardName="@activeBitboardName" />
+                <button class="sidebar-toggle" @onclick="ToggleSidebar" title="@(isSidebarOpen ? "Hide Visualizer" : "Show Visualizer")">
+                    <span class="sidebar-toggle-icon">@(isSidebarOpen ? "‹" : "›")</span>
+                    <span class="sidebar-toggle-label">Bitboard</span>
+                </button>
             </div>
+
+            @if (isGameStarted) {
+                <div class="eval-bar-wrapper">
+                    <div class="eval-score @(currentEvaluation > 0 ? "eval-white-ahead" : currentEvaluation < 0 ? "eval-black-ahead" : "")">
+                        @FormatEvaluation(currentEvaluation)
+                    </div>
+                    <div class="eval-bar">
+                        <div class="eval-bar-black" style="height: @(GetBlackPercentage())%"></div>
+                        <div class="eval-bar-white" style="height: @(GetWhitePercentage())%"></div>
+                        <div class="eval-bar-center"></div>
+                    </div>
+                </div>
+            }
 
             <div class="board-container">
                 <div class="board-header">
-                    <div class="badge badge-black @(game.GetCurrentPlayer().Color == PieceColor.Black ? "badge-is-turn" : "")">Black</div>
-                    <div class="badge badge-algorithm">@BlackPlayer.GetType().Name</div>
+                    <div class="player-info-row">
+                        <div class="badge badge-black @(game.GetCurrentPlayer().Color == PieceColor.Black ? "badge-is-turn" : "")">Black</div>
+                        <div class="badge badge-algorithm">@BlackPlayer.GetType().Name</div>
+                    </div>
+                    @if (isGameStarted) {
+                        <div class="chess-clock @(game.GetCurrentPlayer().Color == PieceColor.Black ? "clock-active" : "")">
+                            <div class="clock-main">
+                                @FormatTime(blackTotalTime)
+                            </div>
+                            <div class="clock-meta">
+                                @if (blackLastMoveTime > TimeSpan.Zero) {
+                                    <span class="clock-move-time">last: @FormatTime(blackLastMoveTime)</span>
+                                }
+                                <span class="clock-moves">@blackMoveCount moves</span>
+                            </div>
+                        </div>
+                    }
                 </div>
                 <div class="board-with-coordinates">
-                    @* Rank numbers on the left *@
                     <div class="board-ranks">
                         @for(int rank = 8; rank >= 1; rank--) {
                             <div class="board-coordinate">@rank</div>
@@ -141,7 +181,6 @@
                                             ondragover="event.preventDefault();"
                                             @ondrop="() => HandleDrop(position)">
                                         
-                                        @* Bitboard Overlay *@
                                         @if (activeBitboard.HasValue) {
                                             <div class="bitboard-overlay @(isBitSet ? "overlay-set" : "overlay-unset")">
                                                 <span class="overlay-bit">@(isBitSet ? "1" : "0")</span>
@@ -181,7 +220,6 @@
                         }
                     </div>
                     
-                    @* Rank numbers on the right *@
                     <div class="board-ranks">
                         @for(int rank = 8; rank >= 1; rank--) {
                             <div class="board-coordinate">@rank</div>
@@ -189,7 +227,6 @@
                     </div>
                 </div>
                 
-                @* File letters at the bottom *@
                 <div class="board-files">
                     <div class="board-files-spacer"></div>
                     @foreach(var file in new[] { 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h' }) {
@@ -199,14 +236,29 @@
                 </div>
                 
                 <div class="board-footer">
-                    <div class="badge badge-white @(game.GetCurrentPlayer().Color == PieceColor.White ? "badge-is-turn" : "")">White</div>
-                    <div class="badge badge-algorithm">@WhitePlayer.GetType().Name</div>
+                    <div class="player-info-row">
+                        <div class="badge badge-white @(game.GetCurrentPlayer().Color == PieceColor.White ? "badge-is-turn" : "")">White</div>
+                        <div class="badge badge-algorithm">@WhitePlayer.GetType().Name</div>
+                    </div>
+                    @if (isGameStarted) {
+                        <div class="chess-clock @(game.GetCurrentPlayer().Color == PieceColor.White ? "clock-active" : "")">
+                            <div class="clock-main">
+                                @FormatTime(whiteTotalTime)
+                            </div>
+                            <div class="clock-meta">
+                                @if (whiteLastMoveTime > TimeSpan.Zero) {
+                                    <span class="clock-move-time">last: @FormatTime(whiteLastMoveTime)</span>
+                                }
+                                <span class="clock-moves">@whiteMoveCount moves</span>
+                            </div>
+                        </div>
+                    }
                 </div>
             </div>
 
             <div class="side-panel right-panel">
-                <div class="captured-pieces-panel captured-pieces-black">
-                    <h3>Captured by Black</h3>
+                <div class="captured-pieces-panel">
+                    <div class="captured-label">Black captured</div>
                     <div class="captured-pieces-list">
                         @foreach(var piece in game.GetCapturedPieces().Where(p => p.Color == PieceColor.White)) {
                             <div class="captured-piece @(@piece.Type.ToString().ToLower())-@(@piece.Color.ToString().ToLower())"></div>
@@ -214,7 +266,6 @@
                     </div>
                 </div>
 
-                @* Hint System - Integrated in side panel *@
                 @if (isGameStarted && !game.IsFinished() && !game.GetCurrentPlayer().IsAI()) {
                     <div class="hint-panel-side">
                         <div class="hint-inner-side">
@@ -295,6 +346,120 @@
         display: flex;
         flex-direction: column;
         width: 100%;
+        position: relative;
+    }
+
+    /* Sliding Sidebar */
+    .visualizer-sidebar {
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 340px;
+        height: 100vh;
+        background: #fafafa;
+        border-right: 1px solid rgba(0, 0, 0, 0.08);
+        box-shadow: 4px 0 24px rgba(0, 0, 0, 0.08);
+        z-index: 1000;
+        transform: translateX(-100%);
+        transition: transform 0.35s cubic-bezier(0.4, 0, 0.2, 1);
+        display: flex;
+        flex-direction: column;
+        overflow: hidden;
+    }
+
+    .visualizer-sidebar.sidebar-open {
+        transform: translateX(0);
+    }
+
+    .sidebar-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: 1rem 1.25rem;
+        border-bottom: 1px solid rgba(0, 0, 0, 0.06);
+        background: #fff;
+    }
+
+    .sidebar-title {
+        font-size: 0.85rem;
+        font-weight: 600;
+        color: #1d1d1f;
+        letter-spacing: -0.2px;
+    }
+
+    .sidebar-close {
+        width: 28px;
+        height: 28px;
+        border: none;
+        background: rgba(0, 0, 0, 0.04);
+        border-radius: 50%;
+        font-size: 1.2rem;
+        color: #86868b;
+        cursor: pointer;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        transition: all 0.2s ease;
+        line-height: 1;
+    }
+
+    .sidebar-close:hover {
+        background: rgba(0, 0, 0, 0.08);
+        color: #1d1d1f;
+    }
+
+    .sidebar-content {
+        flex: 1;
+        overflow-y: auto;
+        padding: 1rem;
+    }
+
+    .sidebar-overlay {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0, 0, 0, 0.3);
+        z-index: 999;
+        backdrop-filter: blur(2px);
+        animation: fadeIn 0.25s ease;
+    }
+
+    @@keyframes fadeIn {
+        from { opacity: 0; }
+        to { opacity: 1; }
+    }
+
+    /* Sidebar Toggle Button */
+    .sidebar-toggle {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.5rem 0.75rem;
+        background: rgba(0, 0, 0, 0.04);
+        border: 1px solid rgba(0, 0, 0, 0.06);
+        border-radius: 8px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: #86868b;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+
+    .sidebar-toggle:hover {
+        background: rgba(0, 0, 0, 0.08);
+        color: #1d1d1f;
+    }
+
+    .sidebar-toggle-icon {
+        font-size: 1rem;
+        line-height: 1;
+    }
+
+    .sidebar-toggle-label {
+        text-transform: uppercase;
+        letter-spacing: 0.3px;
     }
 
     .chess-game-section {
@@ -715,45 +880,50 @@
 
     .game-layout {
         display: flex;
-        gap: 2rem;
+        gap: 1.5rem;
         justify-content: center;
-        align-items: flex-start;
+        align-items: stretch;
         padding: 1rem;
     }
 
     .captured-pieces-panel {
-        width: 200px;
-        padding: 1rem;
-        border: 2px solid #333;
-        border-radius: 0.5rem;
-        background-color: #f9f9f9;
+        width: 180px;
+        padding: 0.75rem 1rem;
+        background: rgba(0, 0, 0, 0.02);
+        border-radius: 12px;
+        border: 1px solid rgba(0, 0, 0, 0.06);
     }
 
-    .captured-pieces-panel h3 {
-        margin-top: 0;
-        margin-bottom: 1rem;
-        font-size: 1rem;
-        text-align: center;
-        color: #333;
+    .captured-label {
+        font-size: 0.7rem;
+        font-weight: 600;
+        text-transform: uppercase;
+        letter-spacing: 0.5px;
+        color: #86868b;
+        margin-bottom: 0.5rem;
     }
 
     .captured-pieces-list {
         display: flex;
         flex-wrap: wrap;
-        gap: 0.5rem;
-        justify-content: center;
-        min-height: 50px;
+        gap: 0.25rem;
+        min-height: 32px;
+        align-items: center;
     }
 
     .captured-piece {
-        width: 40px;
-        height: 40px;
+        width: 28px;
+        height: 28px;
         background-size: contain;
         background-repeat: no-repeat;
         background-position: center;
-        border: 1px solid #ddd;
-        border-radius: 4px;
-        background-color: white;
+        opacity: 0.85;
+        transition: opacity 0.2s ease, transform 0.2s ease;
+    }
+
+    .captured-piece:hover {
+        opacity: 1;
+        transform: scale(1.15);
     }
 
     .board-header {
@@ -825,16 +995,157 @@
         display: flex;
         justify-content: space-between;
         align-items: center;
-        padding: 0.5rem 1rem;
-        gap: 0.75rem;
+        padding: 0.75rem 1rem;
+        gap: 1rem;
     }
 
     .board-footer {
         display: flex;
         justify-content: space-between;
         align-items: center;
-        padding: 0.5rem 1rem;
+        padding: 0.75rem 1rem;
+        gap: 1rem;
+    }
+    
+    .player-info-row {
+        display: flex;
+        align-items: center;
         gap: 0.75rem;
+    }
+    
+    /* Chess Clock - Apple/Tesla Minimalistic Style */
+    .chess-clock {
+        display: flex;
+        flex-direction: column;
+        align-items: flex-start;
+        padding: 0.6rem 1rem;
+        background: #f5f5f7;
+        border-radius: 10px;
+        min-width: 130px;
+        border: 1px solid #e5e5e5;
+    }
+    
+    .chess-clock.clock-active {
+        background: #1d1d1f;
+        border-color: #1d1d1f;
+    }
+    
+    .clock-main {
+        font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+        font-size: 1.4rem;
+        font-weight: 700;
+        letter-spacing: -0.5px;
+        color: #1d1d1f;
+        line-height: 1;
+        font-variant-numeric: tabular-nums;
+    }
+    
+    .chess-clock.clock-active .clock-main {
+        color: #fff;
+    }
+    
+    .clock-meta {
+        display: flex;
+        align-items: center;
+        gap: 0.5rem;
+        margin-top: 0.35rem;
+        font-size: 0.75rem;
+        color: #555;
+        font-weight: 600;
+        letter-spacing: 0.1px;
+    }
+    
+    .chess-clock.clock-active .clock-meta {
+        color: rgba(255, 255, 255, 0.7);
+    }
+    
+    .clock-move-time {
+        color: #34c759;
+        font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+        font-variant-numeric: tabular-nums;
+        font-weight: 600;
+    }
+    
+    .chess-clock.clock-active .clock-move-time {
+        color: #4ade80;
+    }
+    
+    .clock-moves {
+        text-transform: lowercase;
+    }
+
+    /* Evaluation Bar - Apple/Tesla Minimalistic */
+    .eval-bar-wrapper {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+        align-self: center;
+        margin-left: -0.5rem;
+        margin-right: 0.5rem;
+    }
+
+    .eval-bar {
+        position: relative;
+        width: 14px;
+        height: 480px;
+        background: linear-gradient(to bottom, #1d1d1f 0%, #1d1d1f 50%, #f5f5f7 50%, #f5f5f7 100%);
+        border-radius: 7px;
+        overflow: hidden;
+        box-shadow: 
+            inset 0 0 0 1px rgba(0, 0, 0, 0.08),
+            0 2px 8px rgba(0, 0, 0, 0.04);
+    }
+
+    .eval-bar-white {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        background: #f5f5f7;
+        transition: height 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .eval-bar-black {
+        position: absolute;
+        top: 0;
+        left: 0;
+        right: 0;
+        background: #1d1d1f;
+        transition: height 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    .eval-bar-center {
+        position: absolute;
+        top: 50%;
+        left: -2px;
+        right: -2px;
+        height: 2px;
+        background: rgba(128, 128, 128, 0.5);
+        transform: translateY(-50%);
+    }
+
+    .eval-score {
+        font-family: 'SF Mono', 'Fira Code', 'Consolas', monospace;
+        font-size: 0.7rem;
+        font-weight: 700;
+        color: #86868b;
+        letter-spacing: -0.2px;
+        padding: 0.25rem 0.4rem;
+        background: transparent;
+        border-radius: 4px;
+        min-width: 36px;
+        text-align: center;
+        transition: all 0.3s ease;
+    }
+
+    .eval-score.eval-white-ahead {
+        color: #1d1d1f;
+    }
+
+    .eval-score.eval-black-ahead {
+        color: #1d1d1f;
     }
     
     .badge {
@@ -1290,25 +1601,34 @@
     private bool alphaBetaEnabled = true;
     private int searchDepth = 3;
 
-    // Hint system state
     private HintService hintService = new HintService();
     private HintResult? currentHint = null;
     private bool isCalculatingHint = false;
     private bool showHintVisualization = false;
     private int hintSearchDepth = 3;
     
-    // Sound system state
     private int lastCapturedCount = 0;
 
-    // Bitboard visualizer state
+    private TimeSpan whiteTotalTime = TimeSpan.Zero;
+    private TimeSpan blackTotalTime = TimeSpan.Zero;
+    private TimeSpan whiteLastMoveTime = TimeSpan.Zero;
+    private TimeSpan blackLastMoveTime = TimeSpan.Zero;
+    private DateTime? moveStartTime = null;
+    private int whiteMoveCount = 0;
+    private int blackMoveCount = 0;
+
+    private int currentEvaluation = 0; 
+    private readonly IEvaluationFunction _evalFunction = new MaterialEvaluation();
+
+    private bool isSidebarOpen = false;
+
     private ulong? activeBitboard = null;
     private string activeBitboardName = "";
     private bool attackModeEnabled = false;
     private MagicBitboardInfo? currentMagicInfo = null;
     
-    // Overlay refresh tracking
-    private string? overlayType = null; // "occupied", "white", "black", "piece:W:Knight", "attacks:e4:Rook", "allattacks:White", etc.
-    private Position? overlayPiecePosition = null; // Position is a class, so nullable
+    private string? overlayType = null;
+    private Position? overlayPiecePosition = null;
     private Piece? overlayPiece = null;
 
     [Parameter]
@@ -1326,7 +1646,6 @@
     private bool HasVisualizablePlayer => 
         WhitePlayer is IVisualizablePlayer || BlackPlayer is IVisualizablePlayer;
 
-    // Check if current player is human (can receive hints)
     private bool CanRequestHint => 
         isGameStarted && 
         !game.IsFinished() && 
@@ -1342,14 +1661,12 @@
     protected override void OnInitialized() {
         game = new BitBoardGame(WhitePlayer, BlackPlayer, DelayPerMoveInMilliseconds);
         
-        // Initialize settings from player if available
         var visualizablePlayer = GetVisualizablePlayer();
         if (visualizablePlayer != null) {
             alphaBetaEnabled = visualizablePlayer.AlphaBetaPruningEnabled;
             searchDepth = visualizablePlayer.SearchDepth;
         }
         
-        // Initialize hint service settings
         hintService.SearchDepth = hintSearchDepth;
         hintService.AlphaBetaPruningEnabled = true;
     }
@@ -1363,11 +1680,8 @@
     
     private async Task PlayMoveSoundAsync() {
         try {
-            // Check if the last move was a capture by looking at captured pieces count change
-            // For simplicity, we'll play the capture sound if there's a piece at the destination
             var lastMove = game.GetLastMove();
             if (lastMove != null) {
-                // Play capture sound if pieces were captured (we can check the captured pieces list)
                 var capturedCount = game.GetCapturedPieces().Count;
                 if (capturedCount > lastCapturedCount) {
                     await JS.InvokeVoidAsync("ChessSounds.playCaptureSound");
@@ -1379,7 +1693,6 @@
                 await JS.InvokeVoidAsync("ChessSounds.playMoveSound");
             }
         } catch {
-            // Ignore sound errors - audio may not be available
         }
     }
     
@@ -1387,7 +1700,6 @@
         try {
             await JS.InvokeVoidAsync("ChessSounds.playCheckSound");
         } catch {
-            // Ignore sound errors
         }
     }
     
@@ -1396,7 +1708,6 @@
             var isWin = game.Winner != null;
             await JS.InvokeVoidAsync("ChessSounds.playGameOverSound", isWin);
         } catch {
-            // Ignore sound errors
         }
     }
 
@@ -1410,7 +1721,6 @@
         StateHasChanged();
     }
 
-    // Hint system methods
     private async Task RequestHint() {
         if (!CanRequestHint) return;
         
@@ -1464,13 +1774,52 @@
 
     private async Task StartGame() {
         isGameStarted = true;
-        lastCapturedCount = 0; // Reset capture tracking for sound effects
+        lastCapturedCount = 0;
+        
+        whiteTotalTime = TimeSpan.Zero;
+        blackTotalTime = TimeSpan.Zero;
+        whiteLastMoveTime = TimeSpan.Zero;
+        blackLastMoveTime = TimeSpan.Zero;
+        whiteMoveCount = 0;
+        blackMoveCount = 0;
+        moveStartTime = DateTime.UtcNow;
+        
         StateHasChanged();
         await game.Start();
     }
+    
+    private string FormatTime(TimeSpan time) {
+        if (time.TotalHours >= 1) {
+            return $"{(int)time.TotalHours}:{time.Minutes:D2}:{time.Seconds:D2}";
+        }
+        return $"{time.Minutes}:{time.Seconds:D2}.{time.Milliseconds / 100}";
+    }
+
+    private void UpdateEvaluation() {
+        currentEvaluation = _evalFunction.Evaluate(game, PieceColor.White);
+    }
+
+    private void ToggleSidebar() {
+        isSidebarOpen = !isSidebarOpen;
+    }
+
+    private double GetWhitePercentage() {
+        double normalized = currentEvaluation / 5.0;
+        double percentage = 50 + (50 * Math.Tanh(normalized));
+        return Math.Clamp(percentage, 2, 98);
+    }
+
+    private double GetBlackPercentage() {
+        return 100 - GetWhitePercentage();
+    }
+
+    private string FormatEvaluation(int evalScore) {
+        if (evalScore == 0) return "0.0";
+        string sign = evalScore > 0 ? "+" : "";
+        return $"{sign}{evalScore}";
+    }
 
     private async Task HandleCellClick(Position clickedPosition) {
-        // Handle attack mode visualization
         if (attackModeEnabled) {
             var piece = game.GetPieceAtPosition(clickedPosition);
             if (piece != null) {
@@ -1488,7 +1837,6 @@
         } else if(selectedCellPosition == clickedPosition) {
             UnsetSelectedCell();
         } else {
-            // Check if clicking on a friendly piece - switch selection instead of moving
             var clickedPiece = game.GetPieceAtPosition(clickedPosition);
             if(clickedPiece != null && clickedPiece.Color == game.GetCurrentPlayer().Color) {
                 SetSelectedCell(clickedPosition);
@@ -1508,21 +1856,17 @@
         if(currentValidMoves.Any(move => move.To == toPosition)) {
             var move = new Move(fromPosition, toPosition);
             if(game.IsPawnPromotionMove(move)) {
-                // Don't auto-promote - wait for user to click promotion option
-                // If they click the square without promotion options showing, default to Queen
                 var promotionMoves = currentValidMoves
                     .Where(m => m.To == toPosition && m.PromotedTo != null)
                     .ToList();
                 
                 if(promotionMoves.Count >= 1) {
-                    // Promotion options are displayed, wait for HandlePromotionClick
                     return;
                 }
                 
                 move.PromotedTo = PieceType.Queen;
             } 
             
-            // Clear selection BEFORE making the move to prevent highlighting during AI turn
             UnsetSelectedCell();
             StateHasChanged();
             
@@ -1531,7 +1875,6 @@
     }
 
     private async Task HandlePromotionClick(Move promotionMove) {
-        // Clear selection BEFORE making the move to prevent highlighting during AI turn
         UnsetSelectedCell();
         StateHasChanged();
         
@@ -1585,7 +1928,6 @@
         var fromPosition = draggedPiecePosition;
         draggedPiecePosition = null;
 
-        // Check if this is a valid move
         var validMoves = game.GetValidMovesForPosition(fromPosition);
         
         if(validMoves.Any(move => move.To == dropPosition)) {
@@ -1597,7 +1939,6 @@
                     .ToList();
                 
                 if(promotionMoves.Count >= 1) {
-                    // Show promotion options - keep selection active
                     selectedCellPosition = fromPosition;
                     validMovesForselectedCellPosition = validMoves;
                     StateHasChanged();
@@ -1607,7 +1948,6 @@
                 move.PromotedTo = PieceType.Queen;
             }
             
-            // Clear selection BEFORE making the move
             UnsetSelectedCell();
             StateHasChanged();
             
@@ -1618,13 +1958,11 @@
         }
     }
 
-    // Bitboard Visualizer Methods
     private void HandleBitboardSelected((ulong? Bitboard, string Name) selection) {
         activeBitboard = selection.Bitboard;
         activeBitboardName = selection.Name;
-        currentMagicInfo = null; // Clear magic info when selecting a static bitboard
+        currentMagicInfo = null;
         
-        // Track overlay type for refresh
         if (selection.Name == "Occupied") {
             overlayType = "occupied";
         } else if (selection.Name == "White Pieces") {
@@ -1650,7 +1988,6 @@
     private void HandleAttackModeToggled(bool enabled) {
         attackModeEnabled = enabled;
         if (!enabled) {
-            // Clear visualization when disabling attack mode
             ClearOverlay();
         }
         StateHasChanged();
@@ -1662,7 +1999,6 @@
 
         int square = position.Row * 8 + position.Column;
         
-        // Track for refresh
         overlayType = $"pieceattacks:{piece.Type}:{piece.Color}";
         overlayPiecePosition = position;
         overlayPiece = piece;
@@ -1681,7 +2017,7 @@
             case PieceType.Queen:
                 activeBitboard = board.GetQueenAttacksForSquare(square);
                 activeBitboardName = $"Queen Attacks ({GetSquareName(square)})";
-                currentMagicInfo = null; // Queen doesn't have its own magic, it's Rook + Bishop
+                currentMagicInfo = null;
                 break;
             case PieceType.Knight:
                 activeBitboard = BitBoard.GetKnightAttacksForSquare(square);
@@ -1720,7 +2056,6 @@
         } else if (overlayType == "allattacks:Black") {
             activeBitboard = board.GetAllAttacksForColor(PieceColor.Black);
         } else if (overlayType.StartsWith("piece:")) {
-            // e.g., "piece:W Knight" or "piece:B Pawn"
             var parts = overlayType.Substring(6).Split(' ');
             if (parts.Length == 2) {
                 var color = parts[0] == "W" ? PieceColor.White : PieceColor.Black;
@@ -1729,11 +2064,9 @@
                 }
             }
         } else if (overlayType.StartsWith("pieceattacks:") && overlayPiecePosition != null) {
-            // Check if the piece is still at that position
             var currentPiece = game.GetPieceAtPosition(overlayPiecePosition);
             if (currentPiece != null && overlayPiece != null && 
                 currentPiece.Type == overlayPiece.Type && currentPiece.Color == overlayPiece.Color) {
-                // Piece still there, refresh attacks
                 int square = overlayPiecePosition.Row * 8 + overlayPiecePosition.Column;
                 switch (currentPiece.Type) {
                     case PieceType.Rook:
@@ -1758,7 +2091,6 @@
                         break;
                 }
             } else {
-                // Piece moved or captured, clear the overlay
                 ClearOverlay();
             }
         }
@@ -1803,6 +2135,25 @@
     
     private void SetupMoveHandler() {
         game.NextMoveHandler = async () => {
+            if (moveStartTime.HasValue) {
+                var moveTime = DateTime.UtcNow - moveStartTime.Value;
+                var playerWhoMoved = game.GetCurrentPlayer().Color;
+                
+                if (playerWhoMoved == PieceColor.White) {
+                    whiteTotalTime += moveTime;
+                    whiteLastMoveTime = moveTime;
+                    whiteMoveCount++;
+                } else {
+                    blackTotalTime += moveTime;
+                    blackLastMoveTime = moveTime;
+                    blackMoveCount++;
+                }
+            }
+            
+            UpdateEvaluation();
+            
+            moveStartTime = DateTime.UtcNow;
+            
             await PlayMoveSoundAsync();
             currentHint = null;
             hintService.ClearHint();
@@ -1812,7 +2163,6 @@
                 lastSearchResult = visualizablePlayer.GetLastSearchResult();
             }
             
-            // Refresh bitboard overlay if active
             RefreshOverlay();
             
             if (game.IsChecked(game.GetCurrentPlayer().Color)) {
@@ -1824,6 +2174,11 @@
             }
             
             StateHasChanged(); 
+        };
+        
+        game.BeforeAIMoveHandler = async () => {
+            StateHasChanged();
+            await Task.Yield();
         };
     }
 }

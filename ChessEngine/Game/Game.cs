@@ -21,6 +21,7 @@ public class Game : IGame {
     private int _delayPerMoveInMilliseconds = 100;
     private string starterPosition = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
     public Func<Task>? NextMoveHandler { get; set; }
+    public Func<Task>? BeforeAIMoveHandler { get; set; }
     private bool IsGameActive = true;
     public IGameVisualizer? Visualizer { get; set; } = new GameVisualizer();
     public IPlayer? Winner { get; private set; } = null;
@@ -56,9 +57,9 @@ public class Game : IGame {
         }
 
         var movedPiece = board.GetPieceAtPosition(move.From);
-        var moveResult = board.ApplyMove(move);
+        var undoInfo = board.ApplyMove(move);
 
-        if(moveResult.WasCapture || movedPiece!.Type == PieceType.Pawn) {
+        if(undoInfo.CapturedPiece != null || movedPiece!.Type == PieceType.Pawn) {
             _movesWithoutCapture = 0;
         } else {
             _movesWithoutCapture++;
@@ -75,12 +76,34 @@ public class Game : IGame {
 
     public Move? GetLastMove() => board.GetLastMove();
 
+    // Stack to store BoardUndoInfo for simulation undo
+    private Stack<BoardUndoInfo> _simulationUndoStack = new();
+
     public UndoMoveInfo DoMoveForSimulation(Move move) {
-        throw new NotImplementedException("Use BitBoardGame for simulation with DoMove/UndoMove");
+        var boardUndo = board.ApplyMove(move);
+        _simulationUndoStack.Push(boardUndo);
+        currentColor = currentColor == PieceColor.White ? PieceColor.Black : PieceColor.White;
+        
+        // Convert BoardUndoInfo to UndoMoveInfo for interface compatibility
+        return new UndoMoveInfo {
+            Move = boardUndo.Move,
+            MovedType = boardUndo.MovedPiece.Type,
+            MovedColor = boardUndo.MovedPiece.Color,
+            CapturedType = boardUndo.CapturedPiece?.Type,
+            CapturedColor = boardUndo.CapturedPiece?.Color,
+            WasCastling = boardUndo.WasCastling,
+            WasEnPassant = boardUndo.WasEnPassant
+        };
     }
 
     public void UndoMoveForSimulation(UndoMoveInfo undoInfo) {
-        throw new NotImplementedException("Use BitBoardGame for simulation with DoMove/UndoMove");
+        if (_simulationUndoStack.Count == 0) {
+            throw new InvalidOperationException("No moves to undo");
+        }
+        
+        var boardUndo = _simulationUndoStack.Pop();
+        board.UndoMove(boardUndo);
+        currentColor = currentColor == PieceColor.White ? PieceColor.Black : PieceColor.White;
     }
 
     public Board GetBoard() => board;
@@ -119,6 +142,10 @@ public class Game : IGame {
 
     private async Task RunNextMoveIfAI() {
         if(GetCurrentPlayer().IsAI() && !IsSimulated) {
+            if (BeforeAIMoveHandler != null) {
+                await BeforeAIMoveHandler();
+            }
+            
             await Task.Delay(_delayPerMoveInMilliseconds);
 
             var move = await GetCurrentPlayer().GetMove(this);

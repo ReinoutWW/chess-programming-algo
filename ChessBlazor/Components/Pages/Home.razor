@@ -6,16 +6,25 @@
 <PageTitle>Chess Game</PageTitle>
 
 @code {
-    private List<(string Label, Func<PieceColor, IPlayer> Factory)> playerTypes = new()
+    // IsFastAI: true = instant moves (Random, Greedy), benefits from delay for watchability
+    private List<(string Label, Func<PieceColor, IPlayer> Factory, bool IsFastAI)> playerTypes = new()
     {
-        ("Human", color => new HumanBlazorPlayer(color)),
-        ("Random AI", color => new RandomMovePlayer(color)),
-        ("Very Random AI", color => new VeryRandomMovePlayer(color)),
-        ("Greedy AI", color => new GreedyPlayer(color)),
-        ("MiniMax AI with Material Eval", color => new MiniMaxPlayer(color, new MaterialEvaluation())),
-        ("MiniMax AI with Material Eval + Ordering", color => new MiniMaxPlayerOrdering(color, new MaterialEvaluation())),
-        ("MiniMax AI with Material Eval (stats)", color => new MiniMaxPlayerWithStatistics(color, new MaterialEvaluation())),
-        ("MiniMax AI with MatMob Eval", color => new MiniMaxPlayer(color, new MaterialMobilityFunction()))
+        ("Human", color => new HumanBlazorPlayer(color), false),
+        ("Random AI", color => new RandomMovePlayer(color), true),
+        ("Very Random AI", color => new VeryRandomMovePlayer(color), true),
+        ("Greedy AI", color => new GreedyPlayer(color), true),
+        ("MiniMax AI with Material Eval", color => new MiniMaxPlayer(color, new MaterialEvaluation()), false),
+        ("MiniMax AI with Material Eval + Ordering", color => new MiniMaxPlayerOrdering(color, new MaterialEvaluation()), false),
+        ("MiniMax AI with Material Eval (stats)", color => new MiniMaxPlayerWithStatistics(color, new MaterialEvaluation()), false),
+        ("MiniMax AI with MatMob Eval", color => new MiniMaxPlayer(color, new MaterialMobilityFunction()), false),
+        ("Iterative Deepening AI (1s)", color => new IterativeDeepeningPlayer(color, 1.0, new MaterialEvaluation()), false),
+        ("Iterative Deepening AI (5s)", color => new IterativeDeepeningPlayer(color, 5.0, new MaterialEvaluation()), false),
+        ("Iterative Deepening AI (10s)", color => new IterativeDeepeningPlayer(color, 10.0, new MaterialEvaluation()), false),
+        ("Iterative Deepening AI (30s)", color => new IterativeDeepeningPlayer(color, 30.0, new MaterialEvaluation()), false),
+        ("Iterative Deepening AI (60s)", color => new IterativeDeepeningPlayer(color, 60.0, new MaterialEvaluation()), false),
+        ("ID + Quiescence (1s)", color => new IterativeDeepeningWithQuiescence(color, 1.0, new MaterialEvaluation()), false),
+        ("ID + Quiescence (10s)", color => new IterativeDeepeningWithQuiescence(color, 10.0, new MaterialEvaluation()), false),
+        ("ID + Quiescence (30s)", color => new IterativeDeepeningWithQuiescence(color, 30.0, new MaterialEvaluation()), false)
     };
 
     private string? selectedWhiteLabel;
@@ -27,14 +36,23 @@
     private bool gameStarted = false;
 
     private bool ReadyToStart => whitePlayer != null && blackPlayer != null;
+    private bool HasAIPlayer => (whitePlayer != null && whitePlayer.IsAI()) || (blackPlayer != null && blackPlayer.IsAI());
+    
+    private bool HasFastAI {
+        get {
+            var whiteOpt = playerTypes.FirstOrDefault(o => o.Label == selectedWhiteLabel);
+            var blackOpt = playerTypes.FirstOrDefault(o => o.Label == selectedBlackLabel);
+            return whiteOpt.IsFastAI || blackOpt.IsFastAI;
+        }
+    }
 
     private void OnPlayerSelectionChanged()
     {
         var whiteOpt = playerTypes.FirstOrDefault(option => option.Label == selectedWhiteLabel);
-        whitePlayer = whiteOpt.Factory != null ? whiteOpt.Factory.Invoke(PieceColor.White) : null;
+        whitePlayer = whiteOpt.Factory?.Invoke(PieceColor.White);
 
         var blackOpt = playerTypes.FirstOrDefault(option => option.Label == selectedBlackLabel);
-        blackPlayer = blackOpt.Factory != null ? blackOpt.Factory.Invoke(PieceColor.Black) : null;
+        blackPlayer = blackOpt.Factory?.Invoke(PieceColor.Black);
     }
     
     private void StartGame()
@@ -82,9 +100,23 @@
                 </div>
             </div>
 
-            <div class="wrapper-margin-bottom">
-                <input type="number" @bind="delayPerMove" min="2" max="1000" step="2" />
-            </div>
+            @if (HasAIPlayer) {
+                <div class="speed-selector">
+                    <label class="speed-label">AI Move Delay</label>
+                    <span class="speed-hint">@(HasFastAI ? "Slow down fast AIs so you can follow the game" : "Add a pause between AI moves")</span>
+                    <div class="speed-toggle">
+                        <button class="speed-option @(selectedSpeed == "lightning" ? "active" : "")" @onclick='() => SetSpeed("lightning")'>
+                            <span class="speed-text">Instant</span>
+                        </button>
+                        <button class="speed-option @(selectedSpeed == "normal" ? "active" : "")" @onclick='() => SetSpeed("normal")'>
+                            <span class="speed-text">100ms</span>
+                        </button>
+                        <button class="speed-option @(selectedSpeed == "slow" ? "active" : "")" @onclick='() => SetSpeed("slow")'>
+                            <span class="speed-text">1 sec</span>
+                        </button>
+                    </div>
+                </div>
+            }
 
             @if (!ReadyToStart)
             {
@@ -99,29 +131,77 @@
 
     <style>
 
-        .wrapper-margin-bottom {
-            margin-bottom: 1rem;
+        /* Speed Selector - Apple-style Segmented Control */
+        .speed-selector {
+            margin-bottom: 2rem;
+        }
+        
+        .speed-label {
+            display: block;
+            font-size: 0.8125rem;
+            font-weight: 600;
+            color: #86868b;
+            text-transform: uppercase;
+            letter-spacing: 0.02em;
+            margin-bottom: 0.25rem;
+            font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', sans-serif;
         }
 
-        input[type="number"] {
-            width: 100%;
-            padding: 0.625rem 0.75rem;
-            font-size: 0.95rem;
-            border: 1px solid #d1d5db;
-            border-radius: 6px;
+        .speed-hint {
+            display: block;
+            font-size: 0.75rem;
+            color: #a1a1a6;
+            margin-bottom: 0.75rem;
+            font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', sans-serif;
+        }
+        
+        .speed-toggle {
+            display: flex;
+            background: #f5f5f7;
+            border-radius: 12px;
+            padding: 4px;
+            gap: 4px;
+        }
+        
+        .speed-option {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 0.25rem;
+            padding: 0.75rem 1rem;
+            border: none;
+            background: transparent;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.2s cubic-bezier(0.25, 0.1, 0.25, 1);
+            font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'Segoe UI', sans-serif;
+        }
+        
+        .speed-option:hover:not(.active) {
+            background: rgba(0, 0, 0, 0.04);
+        }
+        
+        .speed-option.active {
             background: white;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1), 0 1px 2px rgba(0, 0, 0, 0.06);
         }
-
-        input[type="number"]:focus {
-            outline: none;
-            border-color: #6366f1;
-            box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+        
+        .speed-icon {
+            font-size: 1.25rem;
+            line-height: 1;
         }
-
-        input[type="number"]:invalid {
-            border-color: #ef4444;
-            box-shadow: 0 0 0 3px rgba(239, 68, 68, 0.1);
-            outline: none;
+        
+        .speed-text {
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: #86868b;
+            letter-spacing: 0.01em;
+            transition: color 0.2s ease;
+        }
+        
+        .speed-option.active .speed-text {
+            color: #1d1d1f;
         }
 
         .setup-screen {
@@ -289,4 +369,15 @@ else
 
 @code {
     private int delayPerMove = 100;
+    private string selectedSpeed = "normal";
+    
+    private void SetSpeed(string speed) {
+        selectedSpeed = speed;
+        delayPerMove = speed switch {
+            "lightning" => 2,
+            "normal" => 100,
+            "slow" => 1000,
+            _ => 100
+        };
+    }
 }

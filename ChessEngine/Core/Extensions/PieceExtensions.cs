@@ -43,4 +43,10 @@ public static class PieceExtensions {
             _ => throw new InvalidOperationException("Invalid piece type"),
         };
     }
+
+    /// <summary>
+    /// Gets the opponent's color.
+    /// </summary>
+    public static PieceColor OpponentColor(this PieceColor color) 
+        => color == PieceColor.White ? PieceColor.Black : PieceColor.White;
 }

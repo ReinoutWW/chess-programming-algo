@@ -6,6 +6,7 @@ using Chess.Programming.Ago.Core;
 
 public interface IGame {
     Func<Task>? NextMoveHandler { get; set; }
+    Func<Task>? BeforeAIMoveHandler { get; set; }
     IPlayer? Winner { get; }
 
     public bool IsChecked(PieceColor color);

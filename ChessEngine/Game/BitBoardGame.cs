@@ -23,6 +23,7 @@ public class BitBoardGame : IGame {
     private int _delayPerMoveInMilliseconds = 100;
     private string starterPosition = "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1";
     public Func<Task>? NextMoveHandler { get; set; }
+    public Func<Task>? BeforeAIMoveHandler { get; set; }
     public BitBoardGameVisualizer Visualizer { get; set; } = new BitBoardGameVisualizer();
     public IPlayer? Winner { get; private set; } = null;
     private Stack<(Move move, UndoMoveInfo undoMoveInfo)> _moveHistory = new();
@@ -121,6 +122,10 @@ public class BitBoardGame : IGame {
 
     private async Task RunNextMoveIfAI() {
         if(GetCurrentPlayer().IsAI() && !IsSimulated) {
+            if (BeforeAIMoveHandler != null) {
+                await BeforeAIMoveHandler();
+            }
+            
             await Task.Delay(_delayPerMoveInMilliseconds);
 
             var move = await GetCurrentPlayer().GetMove(this);
